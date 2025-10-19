@@ -4,7 +4,6 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { GoogleAnalytics } from "@/lib/analytics/google-analytics";
 import { Toaster } from "react-hot-toast";
-import ToastDismissListener from "@/components/ToastDismissListener";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,7 +39,6 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <GoogleAnalytics />
-        <ToastDismissListener />
         <ThemeProvider>
           {children}
         </ThemeProvider>
