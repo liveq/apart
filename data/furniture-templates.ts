@@ -244,6 +244,15 @@ export const furnitureTemplates: FurnitureTemplate[] = [
     color: '#C0C0C0',
     category: 'appliance',
   },
+  {
+    id: 'air-dresser',
+    name: { ko: '에어드레서', en: 'Air Dresser' },
+    width: 445,
+    depth: 585,
+    height: 1850,
+    color: '#B0B0B0',
+    category: 'appliance',
+  },
   // 전자제품 (TV와 모니터는 얇게!)
   {
     id: 'tv-32',

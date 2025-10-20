@@ -15,6 +15,39 @@ interface FurnitureItemProps {
   eraserMode?: boolean;
 }
 
+// Calculate cursor style based on handle type and rotation
+const getResizeCursor = (handle: string, rotation: number): string => {
+  // Normalize rotation to 0-360
+  const normalizedRotation = ((rotation % 360) + 360) % 360;
+
+  // Round to nearest 45 degrees for cursor selection
+  const roundedRotation = Math.round(normalizedRotation / 45) * 45;
+
+  // Map handle directions to angles (0° = east, 90° = south, etc.)
+  const handleAngles: { [key: string]: number } = {
+    'e': 0,    // East (right)
+    'se': 45,  // Southeast
+    's': 90,   // South (bottom)
+    'sw': 135, // Southwest
+    'w': 180,  // West (left)
+    'nw': 225, // Northwest
+    'n': 270,  // North (top)
+    'ne': 315, // Northeast
+  };
+
+  // Calculate final angle
+  const finalAngle = (handleAngles[handle] + roundedRotation) % 360;
+
+  // Map angles to cursor styles
+  if (finalAngle === 0 || finalAngle === 180) return 'ew-resize';
+  if (finalAngle === 90 || finalAngle === 270) return 'ns-resize';
+  if (finalAngle === 45 || finalAngle === 225) return 'nesw-resize';
+  if (finalAngle === 135 || finalAngle === 315) return 'nwse-resize';
+
+  // Fallback
+  return 'move';
+};
+
 export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX = 0, canvasPanY = 0, eraserMode = false }: FurnitureItemProps) {
   const { language } = useTranslation();
   const { selectedId, setSelectedId, updateFurniture, snapEnabled, snapSize, deleteFurniture } = useFurnitureStore();
@@ -195,7 +228,10 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
     document.body.classList.add('resizing');
   };
 
-  // Resize effect
+  // Resize effect - using useRef to avoid infinite re-renders
+  const rotationRef = useRef(item.rotation);
+  rotationRef.current = item.rotation;
+
   useEffect(() => {
     if (!isResizing || !resizeHandle) return;
 
@@ -210,76 +246,84 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
       const deltaX = mouseXmm - resizeStart.x;
       const deltaY = mouseYmm - resizeStart.y;
 
-      // Convert delta based on rotation
-      const rad = (item.rotation * Math.PI) / 180;
-      const cos = Math.cos(rad);
-      const sin = Math.sin(rad);
-
-      const rotatedDeltaX = deltaX * cos + deltaY * sin;
-      const rotatedDeltaY = -deltaX * sin + deltaY * cos;
+      // Inverse rotate mouse delta
+      const rotationRad = (rotationRef.current * Math.PI) / 180;
+      const cos = Math.cos(rotationRad);
+      const sin = Math.sin(rotationRad);
+      const logicalDeltaX = deltaX * cos + deltaY * sin;
+      const logicalDeltaY = -deltaX * sin + deltaY * cos;
 
       let newWidth = resizeStart.width;
       let newDepth = resizeStart.depth;
       let newX = resizeStart.itemX;
       let newY = resizeStart.itemY;
 
-      // Apply resize based on handle
+      // Calculate world position of the opposite anchor point and keep it fixed
+      const rad = (rotationRef.current * Math.PI) / 180;
+      const cos_r = Math.cos(rad);
+      const sin_r = Math.sin(rad);
+
+      // Center in world coordinates
+      const centerX = resizeStart.itemX + resizeStart.width / 2;
+      const centerY = resizeStart.itemY + resizeStart.depth / 2;
+
+      // Opposite anchor point in logical coordinates (relative to center)
+      let anchorLogicalX = 0, anchorLogicalY = 0;
+
       switch (resizeHandle) {
-        case 'e': // Right edge
-          newWidth = Math.max(100, resizeStart.width + rotatedDeltaX);
+        case 'e': anchorLogicalX = -resizeStart.width / 2; break; // left
+        case 'w': anchorLogicalX = resizeStart.width / 2; break; // right
+        case 's': anchorLogicalY = -resizeStart.depth / 2; break; // top
+        case 'n': anchorLogicalY = resizeStart.depth / 2; break; // bottom
+        case 'se': anchorLogicalX = -resizeStart.width / 2; anchorLogicalY = -resizeStart.depth / 2; break; // top-left
+        case 'sw': anchorLogicalX = resizeStart.width / 2; anchorLogicalY = -resizeStart.depth / 2; break; // top-right
+        case 'ne': anchorLogicalX = -resizeStart.width / 2; anchorLogicalY = resizeStart.depth / 2; break; // bottom-left
+        case 'nw': anchorLogicalX = resizeStart.width / 2; anchorLogicalY = resizeStart.depth / 2; break; // bottom-right
+      }
+
+      // Transform anchor to world coordinates
+      const anchorWorldX = centerX + (anchorLogicalX * cos_r - anchorLogicalY * sin_r);
+      const anchorWorldY = centerY + (anchorLogicalX * sin_r + anchorLogicalY * cos_r);
+
+      // Apply resize
+      switch (resizeHandle) {
+        case 'e':
+        case 'w':
+          newWidth = Math.max(100, resizeStart.width + (resizeHandle === 'e' ? logicalDeltaX : -logicalDeltaX));
           break;
-        case 'w': // Left edge
-          newWidth = Math.max(100, resizeStart.width - rotatedDeltaX);
-          if (newWidth !== resizeStart.width) {
-            const widthDiff = newWidth - resizeStart.width;
-            newX = resizeStart.itemX - widthDiff * cos;
-            newY = resizeStart.itemY - widthDiff * sin;
-          }
+        case 's':
+        case 'n':
+          newDepth = Math.max(100, resizeStart.depth + (resizeHandle === 's' ? logicalDeltaY : -logicalDeltaY));
           break;
-        case 's': // Bottom edge
-          newDepth = Math.max(100, resizeStart.depth + rotatedDeltaY);
-          break;
-        case 'n': // Top edge
-          newDepth = Math.max(100, resizeStart.depth - rotatedDeltaY);
-          if (newDepth !== resizeStart.depth) {
-            const depthDiff = newDepth - resizeStart.depth;
-            newX = resizeStart.itemX + depthDiff * sin;
-            newY = resizeStart.itemY - depthDiff * cos;
-          }
-          break;
-        case 'se': // Bottom-right corner
-          newWidth = Math.max(100, resizeStart.width + rotatedDeltaX);
-          newDepth = Math.max(100, resizeStart.depth + rotatedDeltaY);
-          break;
-        case 'sw': // Bottom-left corner
-          newWidth = Math.max(100, resizeStart.width - rotatedDeltaX);
-          newDepth = Math.max(100, resizeStart.depth + rotatedDeltaY);
-          if (newWidth !== resizeStart.width) {
-            const widthDiff = newWidth - resizeStart.width;
-            newX = resizeStart.itemX - widthDiff * cos;
-            newY = resizeStart.itemY - widthDiff * sin;
-          }
-          break;
-        case 'ne': // Top-right corner
-          newWidth = Math.max(100, resizeStart.width + rotatedDeltaX);
-          newDepth = Math.max(100, resizeStart.depth - rotatedDeltaY);
-          if (newDepth !== resizeStart.depth) {
-            const depthDiff = newDepth - resizeStart.depth;
-            newX = resizeStart.itemX + depthDiff * sin;
-            newY = resizeStart.itemY - depthDiff * cos;
-          }
-          break;
-        case 'nw': // Top-left corner
-          newWidth = Math.max(100, resizeStart.width - rotatedDeltaX);
-          newDepth = Math.max(100, resizeStart.depth - rotatedDeltaY);
-          if (newWidth !== resizeStart.width || newDepth !== resizeStart.depth) {
-            const widthDiff = newWidth - resizeStart.width;
-            const depthDiff = newDepth - resizeStart.depth;
-            newX = resizeStart.itemX - widthDiff * cos + depthDiff * sin;
-            newY = resizeStart.itemY - widthDiff * sin - depthDiff * cos;
-          }
+        case 'se':
+        case 'sw':
+        case 'ne':
+        case 'nw':
+          newWidth = Math.max(100, resizeStart.width + (resizeHandle.includes('e') ? logicalDeltaX : -logicalDeltaX));
+          newDepth = Math.max(100, resizeStart.depth + (resizeHandle.includes('s') ? logicalDeltaY : -logicalDeltaY));
           break;
       }
+
+      // New anchor in logical coordinates (relative to new center)
+      let newAnchorLogicalX = 0, newAnchorLogicalY = 0;
+      switch (resizeHandle) {
+        case 'e': newAnchorLogicalX = -newWidth / 2; break;
+        case 'w': newAnchorLogicalX = newWidth / 2; break;
+        case 's': newAnchorLogicalY = -newDepth / 2; break;
+        case 'n': newAnchorLogicalY = newDepth / 2; break;
+        case 'se': newAnchorLogicalX = -newWidth / 2; newAnchorLogicalY = -newDepth / 2; break;
+        case 'sw': newAnchorLogicalX = newWidth / 2; newAnchorLogicalY = -newDepth / 2; break;
+        case 'ne': newAnchorLogicalX = -newWidth / 2; newAnchorLogicalY = newDepth / 2; break;
+        case 'nw': newAnchorLogicalX = newWidth / 2; newAnchorLogicalY = newDepth / 2; break;
+      }
+
+      // Calculate new center position that keeps anchor at same world position
+      const newCenterX = anchorWorldX - (newAnchorLogicalX * cos_r - newAnchorLogicalY * sin_r);
+      const newCenterY = anchorWorldY - (newAnchorLogicalX * sin_r + newAnchorLogicalY * cos_r);
+
+      // Convert center to top-left position
+      newX = newCenterX - newWidth / 2;
+      newY = newCenterY - newDepth / 2;
 
       updateFurniture(item.id, {
         width: newWidth,
@@ -302,7 +346,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizing, resizeHandle, resizeStart, item.id, item.rotation, canvasZoom, scale, updateFurniture]);
+  }, [isResizing, resizeHandle, resizeStart, item.id, canvasZoom, scale, updateFurniture]);
 
   // Add event listeners with useEffect
   useEffect(() => {
@@ -333,7 +377,14 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
       onTouchStart={handleTouchStart}
       onClick={handleClick}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseLeave={(e) => {
+        // X 버튼으로 이동하는 경우 hover 유지
+        const target = e.relatedTarget as HTMLElement;
+        if (target && target instanceof HTMLElement && target.closest('[data-delete-button]')) {
+          return;
+        }
+        setIsHovered(false);
+      }}
       style={{
         position: 'absolute',
         left: `${x}px`,
@@ -363,6 +414,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
       {/* Delete button - show when selected, hovered, or button itself is hovered */}
       {showDeleteButton && (
         <button
+          data-delete-button
           onClick={handleDelete}
           onMouseDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
@@ -411,7 +463,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
               left: '8px',
               right: '8px',
               height: '8px',
-              cursor: 'n-resize',
+              cursor: getResizeCursor('n', item.rotation),
               zIndex: 2,
             }}
           />
@@ -424,7 +476,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
               right: '-4px',
               bottom: '8px',
               width: '8px',
-              cursor: 'e-resize',
+              cursor: getResizeCursor('e', item.rotation),
               zIndex: 2,
             }}
           />
@@ -437,7 +489,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
               left: '8px',
               right: '8px',
               height: '8px',
-              cursor: 's-resize',
+              cursor: getResizeCursor('s', item.rotation),
               zIndex: 2,
             }}
           />
@@ -450,7 +502,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
               left: '-4px',
               bottom: '8px',
               width: '8px',
-              cursor: 'w-resize',
+              cursor: getResizeCursor('w', item.rotation),
               zIndex: 2,
             }}
           />
@@ -467,7 +519,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
               height: '8px',
               backgroundColor: 'white',
               border: '1px solid #3b82f6',
-              cursor: 'nw-resize',
+              cursor: getResizeCursor('nw', item.rotation),
               zIndex: 3,
             }}
           />
@@ -482,7 +534,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
               height: '8px',
               backgroundColor: 'white',
               border: '1px solid #3b82f6',
-              cursor: 'ne-resize',
+              cursor: getResizeCursor('ne', item.rotation),
               zIndex: 3,
             }}
           />
@@ -497,7 +549,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
               height: '8px',
               backgroundColor: 'white',
               border: '1px solid #3b82f6',
-              cursor: 'se-resize',
+              cursor: getResizeCursor('se', item.rotation),
               zIndex: 3,
             }}
           />
@@ -512,7 +564,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
               height: '8px',
               backgroundColor: 'white',
               border: '1px solid #3b82f6',
-              cursor: 'sw-resize',
+              cursor: getResizeCursor('sw', item.rotation),
               zIndex: 3,
             }}
           />
@@ -542,7 +594,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
           lineHeight: '1.4',
           paddingBottom: '2px',
         }}>
-          {item.name[language]}
+          {item.customName || item.name[language]}
         </div>
         <div style={{
           fontSize: `${Math.max(8, Math.min(width, depth) / 12)}px`,

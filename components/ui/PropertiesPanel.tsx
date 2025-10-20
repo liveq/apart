@@ -21,6 +21,7 @@ export default function PropertiesPanel({ isMobile = false }: PropertiesPanelPro
   const [editWidth, setEditWidth] = useState('');
   const [editDepth, setEditDepth] = useState('');
   const [editHeight, setEditHeight] = useState('');
+  const [editName, setEditName] = useState('');
 
   // Update local state when selection changes or dimensions change
   useEffect(() => {
@@ -28,6 +29,7 @@ export default function PropertiesPanel({ isMobile = false }: PropertiesPanelPro
       setEditWidth(mmToCm(selectedItem.width).toString());
       setEditDepth(mmToCm(selectedItem.depth).toString());
       setEditHeight(mmToCm(selectedItem.height).toString());
+      setEditName(selectedItem.customName || '');
     }
   }, [selectedItem?.id, selectedItem?.width, selectedItem?.depth, selectedItem?.height]);
 
@@ -45,6 +47,12 @@ export default function PropertiesPanel({ isMobile = false }: PropertiesPanelPro
       const mmValue = numValue * 10; // cm to mm
       updateFurniture(selectedId, { [dimension]: mmValue });
     }
+  };
+
+  const handleNameChange = (value: string) => {
+    if (!selectedId) return;
+    // 빈 문자열이면 customName을 삭제 (기본 이름으로 돌아감)
+    updateFurniture(selectedId, { customName: value || undefined });
   };
 
   const handleResetToDefault = () => {
@@ -83,9 +91,24 @@ export default function PropertiesPanel({ isMobile = false }: PropertiesPanelPro
 
     return (
       <div className="w-full h-full flex flex-col overflow-hidden">
-        {/* Header with name */}
+        {/* Header with editable name */}
         <div className="px-4 pt-3 pb-2">
-          <h3 className="font-bold text-lg">{selectedItem.name[language]}</h3>
+          <input
+            type="text"
+            value={editName}
+            placeholder={selectedItem.name[language]}
+            onChange={(e) => setEditName(e.target.value)}
+            onBlur={(e) => handleNameChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
+            }}
+            className="font-bold text-lg w-full bg-transparent border-b border-border focus:border-primary outline-none px-1 py-1"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            {t('defaultName')}: {selectedItem.name[language]}
+          </p>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
@@ -239,7 +262,25 @@ export default function PropertiesPanel({ isMobile = false }: PropertiesPanelPro
       ) : (
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div>
-            <h3 className="font-semibold mb-3">{selectedItem.name[language]}</h3>
+            <div className="mb-3">
+              <label className="text-xs font-medium text-muted-foreground block mb-1">{t('furnitureName')}</label>
+              <input
+                type="text"
+                value={editName}
+                placeholder={selectedItem.name[language]}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={(e) => handleNameChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur();
+                  }
+                }}
+                className="w-full px-2 py-1.5 text-sm bg-secondary border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {t('defaultName')}: {selectedItem.name[language]}
+              </p>
+            </div>
 
             {/* Editable Dimensions */}
             <div className="space-y-2 mb-3">

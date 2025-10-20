@@ -127,6 +127,11 @@ export const translations = {
     name: '이름',
     nameKorean: '한글 이름',
     nameEnglish: '영문 이름',
+
+    // Search
+    search: '검색',
+    fuzzySearchSupported: '초성 검색 가능',
+    defaultName: '기본 이름',
   },
   en: {
     // Header
@@ -256,6 +261,11 @@ export const translations = {
     name: 'Name',
     nameKorean: 'Korean Name',
     nameEnglish: 'English Name',
+
+    // Search
+    search: 'Search',
+    fuzzySearchSupported: 'Fuzzy search supported',
+    defaultName: 'Default Name',
   },
 };
 

@@ -8,6 +8,7 @@ export interface FurnitureItem {
     ko: string;
     en: string;
   };
+  customName?: string;  // 사용자 정의 이름 (선택사항)
   x: number;
   y: number;
   width: number;  // 가로 (mm)

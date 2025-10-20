@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useFurnitureStore } from '@/lib/stores/furniture-store';
 import { useAppStore } from '@/lib/stores/app-store';
-import { furnitureTemplates } from '@/data/furniture-templates';
+import { furnitureTemplates, furnitureCategories } from '@/data/furniture-templates';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { mmToCm } from '@/lib/utils/canvas';
 import CustomFurnitureDialog from './CustomFurnitureDialog';
@@ -19,6 +19,7 @@ export default function FurniturePanel({ isMobile = false, onClose }: FurnitureP
   const { addFurniture } = useFurnitureStore();
   const { viewport, calibratedScale, uploadedImageUrl } = useAppStore();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showCustomDialog, setShowCustomDialog] = useState(false);
 
@@ -102,9 +103,50 @@ export default function FurniturePanel({ isMobile = false, onClose }: FurnitureP
     localStorage.setItem('furniturePanel_spawnPosition', newValue);
   };
 
-  const filteredTemplates = selectedCategory
-    ? furnitureTemplates.filter((t) => t.category === selectedCategory)
-    : furnitureTemplates;
+  // 유사 검색 함수 (fuzzy search)
+  const fuzzyMatch = (text: string, query: string): boolean => {
+    if (!query) return true;
+    const lowerText = text.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+
+    // 완전 일치
+    if (lowerText.includes(lowerQuery)) return true;
+
+    // 초성 검색 지원 (한글)
+    const CHOSUNG = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+    const getChosung = (char: string) => {
+      const code = char.charCodeAt(0) - 0xAC00;
+      if (code < 0 || code > 11171) return char;
+      return CHOSUNG[Math.floor(code / 588)];
+    };
+
+    const textChosung = Array.from(lowerText).map(getChosung).join('');
+    if (textChosung.includes(lowerQuery)) return true;
+
+    return false;
+  };
+
+  const filteredTemplates = furnitureTemplates.filter((template) => {
+    // 카테고리 필터
+    if (selectedCategory && template.category !== selectedCategory) {
+      return false;
+    }
+
+    // 검색 필터
+    if (searchQuery) {
+      const matchesKorean = fuzzyMatch(template.name.ko, searchQuery);
+      const matchesEnglish = fuzzyMatch(template.name.en, searchQuery);
+      const matchesCategory = furnitureCategories.find(c => c.id === template.category);
+      const matchesCategoryName = matchesCategory ?
+        (fuzzyMatch(matchesCategory.name.ko, searchQuery) || fuzzyMatch(matchesCategory.name.en, searchQuery)) : false;
+
+      if (!matchesKorean && !matchesEnglish && !matchesCategoryName) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 
   // Mobile layout
   if (isMobile) {
@@ -130,10 +172,21 @@ export default function FurniturePanel({ isMobile = false, onClose }: FurnitureP
           </button>
         </div>
 
+        {/* Search */}
+        <div className="px-3 pt-2 pb-1">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={`${t('search')}... (${t('fuzzySearchSupported')})`}
+            className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+
         {/* Compact controls */}
         <div className="px-3 pt-2 pb-2 space-y-2">
           {/* First row: +신규 and main categories */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => setShowCustomDialog(true)}
               className="px-3 py-1.5 bg-primary text-primary-foreground hover:opacity-90 rounded-full text-xs transition-opacity font-medium flex-shrink-0"
@@ -150,41 +203,17 @@ export default function FurniturePanel({ isMobile = false, onClose }: FurnitureP
             >
               All
             </button>
-            <button
-              onClick={() => setSelectedCategory('bed')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all flex-shrink-0 ${
-                selectedCategory === 'bed'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary/60 text-secondary-foreground'
-              }`}
-            >
-              {t('bed')}
-            </button>
-            <button
-              onClick={() => setSelectedCategory('sofa')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all flex-shrink-0 ${
-                selectedCategory === 'sofa'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary/60 text-secondary-foreground'
-              }`}
-            >
-              {t('sofa')}
-            </button>
-          </div>
-
-          {/* Second row: other categories */}
-          <div className="flex gap-2 flex-wrap">
-            {['table', 'desk', 'storage', 'appliance'].map((cat) => (
+            {furnitureCategories.map((category) => (
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
+                key={category.id}
+                onClick={() => setSelectedCategory(category.id)}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all flex-shrink-0 ${
-                  selectedCategory === cat
+                  selectedCategory === category.id
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-secondary/60 text-secondary-foreground'
                 }`}
               >
-                {t(cat as any)}
+                {category.name[language]}
               </button>
             ))}
           </div>
@@ -273,6 +302,17 @@ export default function FurniturePanel({ isMobile = false, onClose }: FurnitureP
         </button>
       </div>
 
+      {/* Search */}
+      <div className="px-4 pt-3 pb-2">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={`${t('search')}... (${t('fuzzySearchSupported')})`}
+          className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+      </div>
+
       <div className="p-4 border-b border-border">
         <div className="flex flex-wrap gap-2">
           <button
@@ -285,66 +325,19 @@ export default function FurniturePanel({ isMobile = false, onClose }: FurnitureP
           >
             All
           </button>
-          <button
-            onClick={() => setSelectedCategory('bed')}
-            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-              selectedCategory === 'bed'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-secondary-foreground hover:bg-accent'
-            }`}
-          >
-            {t('bed')}
-          </button>
-          <button
-            onClick={() => setSelectedCategory('sofa')}
-            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-              selectedCategory === 'sofa'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-secondary-foreground hover:bg-accent'
-            }`}
-          >
-            {t('sofa')}
-          </button>
-          <button
-            onClick={() => setSelectedCategory('table')}
-            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-              selectedCategory === 'table'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-secondary-foreground hover:bg-accent'
-            }`}
-          >
-            {t('table')}
-          </button>
-          <button
-            onClick={() => setSelectedCategory('desk')}
-            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-              selectedCategory === 'desk'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-secondary-foreground hover:bg-accent'
-            }`}
-          >
-            {t('desk')}
-          </button>
-          <button
-            onClick={() => setSelectedCategory('storage')}
-            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-              selectedCategory === 'storage'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-secondary-foreground hover:bg-accent'
-            }`}
-          >
-            {t('storage')}
-          </button>
-          <button
-            onClick={() => setSelectedCategory('appliance')}
-            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-              selectedCategory === 'appliance'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-secondary-foreground hover:bg-accent'
-            }`}
-          >
-            {t('appliance')}
-          </button>
+          {furnitureCategories.map((category) => (
+            <button
+              key={category.id}
+              onClick={() => setSelectedCategory(category.id)}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                selectedCategory === category.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-secondary-foreground hover:bg-accent'
+              }`}
+            >
+              {category.name[language]}
+            </button>
+          ))}
         </div>
       </div>
 
