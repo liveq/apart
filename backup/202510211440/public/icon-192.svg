@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="rounded">
+      <rect width="192" height="192" rx="24" ry="24"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#rounded)">
+    <!-- Background -->
+    <rect width="192" height="192" fill="#3b82f6"/>
+
+    <g transform="scale(1)">
+      <!-- House body -->
+      <path d="M96 50 L140 85 L140 140 L52 140 L52 85 Z" fill="white"/>
+
+      <!-- Door -->
+      <rect x="75" y="100" width="42" height="40" fill="#3b82f6"/>
+
+      <!-- Roof -->
+      <path d="M50 50 L96 20 L142 50" stroke="white" stroke-width="6" fill="none" stroke-linecap="round"/>
+
+      <!-- Ruler -->
+      <line x1="145" y1="155" x2="165" y2="135" stroke="white" stroke-width="5" stroke-linecap="round"/>
+
+      <!-- Ruler dots -->
+      <circle cx="165" cy="135" r="3" fill="white"/>
+      <circle cx="145" cy="155" r="3" fill="white"/>
+    </g>
+  </g>
+</svg>
