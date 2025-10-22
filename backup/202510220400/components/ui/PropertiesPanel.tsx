@@ -1,0 +1,665 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useFurnitureStore } from '@/lib/stores/furniture-store';
+import { useDrawingStore } from '@/lib/stores/drawing-store';
+import { useTranslation } from '@/lib/hooks/useTranslation';
+import { mmToCm } from '@/lib/utils/canvas';
+import { furnitureTemplates } from '@/data/furniture-templates';
+
+interface PropertiesPanelProps {
+  isMobile?: boolean;
+}
+
+export default function PropertiesPanel({ isMobile = false }: PropertiesPanelProps) {
+  const { t, language } = useTranslation();
+  const { furniture, selectedId: furnitureSelectedId, updateFurniture, deleteFurniture, duplicateFurniture, rotateFurniture } = useFurnitureStore();
+  const { elements, selectedElementId, updateElement, deleteElement, showDimensionLabels, setShowDimensionLabels, rotateElement, duplicateElement } = useDrawingStore();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Determine what's selected
+  const selectedFurniture = furniture.find((item) => item.id === furnitureSelectedId);
+  const selectedDrawing = elements.find((el) => el.id === selectedElementId);
+
+  // Local state for furniture editing
+  const [editWidth, setEditWidth] = useState('');
+  const [editDepth, setEditDepth] = useState('');
+  const [editHeight, setEditHeight] = useState('');
+  const [editName, setEditName] = useState('');
+
+  // Local state for drawing editing
+  const [editDrawingWidth, setEditDrawingWidth] = useState('');
+  const [editDrawingHeight, setEditDrawingHeight] = useState('');
+  const [editStrokeColor, setEditStrokeColor] = useState('');
+  const [editFillColor, setEditFillColor] = useState('');
+  const [editThickness, setEditThickness] = useState('');
+  const [editLineLength, setEditLineLength] = useState('');
+  const [editTextContent, setEditTextContent] = useState('');
+  const [editTextColor, setEditTextColor] = useState('');
+  const [editFontSize, setEditFontSize] = useState('');
+
+  // Update local state when furniture selection changes
+  useEffect(() => {
+    if (selectedFurniture) {
+      setEditWidth(mmToCm(selectedFurniture.width).toString());
+      setEditDepth(mmToCm(selectedFurniture.depth).toString());
+      setEditHeight(mmToCm(selectedFurniture.height).toString());
+      setEditName(selectedFurniture.customName || '');
+    }
+  }, [selectedFurniture?.id, selectedFurniture?.width, selectedFurniture?.depth, selectedFurniture?.height]);
+
+  // Update local state when drawing selection changes
+  useEffect(() => {
+    if (selectedDrawing) {
+      if (selectedDrawing.type === 'rectangle') {
+        setEditDrawingWidth((selectedDrawing.width).toString());
+        setEditDrawingHeight((selectedDrawing.height).toString());
+        setEditStrokeColor(selectedDrawing.strokeColor);
+        setEditFillColor(selectedDrawing.fillColor);
+        setEditThickness(selectedDrawing.thickness.toString());
+      } else if (selectedDrawing.type === 'circle') {
+        setEditDrawingWidth((selectedDrawing.rx * 2).toString());
+        setEditDrawingHeight((selectedDrawing.ry * 2).toString());
+        setEditStrokeColor(selectedDrawing.strokeColor);
+        setEditFillColor(selectedDrawing.fillColor);
+        setEditThickness(selectedDrawing.thickness.toString());
+      } else if (selectedDrawing.type === 'line') {
+        const dx = selectedDrawing.endX - selectedDrawing.startX;
+        const dy = selectedDrawing.endY - selectedDrawing.startY;
+        const length = Math.sqrt(dx * dx + dy * dy);
+        setEditLineLength(length.toFixed(1));
+        setEditStrokeColor(selectedDrawing.color);
+        setEditThickness(selectedDrawing.thickness.toString());
+      } else if (selectedDrawing.type === 'path') {
+        setEditStrokeColor(selectedDrawing.color);
+        setEditThickness(selectedDrawing.thickness.toString());
+      } else if (selectedDrawing.type === 'text') {
+        setEditTextContent(selectedDrawing.text);
+        setEditTextColor(selectedDrawing.color);
+        setEditFontSize(selectedDrawing.fontSize.toString());
+      }
+    }
+  }, [selectedDrawing?.id]);
+
+  const handleColorChange = (color: string) => {
+    if (furnitureSelectedId) {
+      updateFurniture(furnitureSelectedId, { color });
+    }
+  };
+
+  const handleDimensionChange = (dimension: 'width' | 'depth' | 'height', value: string) => {
+    if (!furnitureSelectedId) return;
+
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && numValue > 0) {
+      const mmValue = numValue * 10; // cm to mm
+      updateFurniture(furnitureSelectedId, { [dimension]: mmValue });
+    }
+  };
+
+  const handleNameChange = (value: string) => {
+    if (!furnitureSelectedId) return;
+    updateFurniture(furnitureSelectedId, { customName: value || undefined });
+  };
+
+  const handleResetToDefault = () => {
+    if (!furnitureSelectedId || !selectedFurniture) return;
+
+    const template = furnitureTemplates.find(t => t.id === selectedFurniture.templateId);
+    if (template) {
+      updateFurniture(furnitureSelectedId, {
+        width: template.width,
+        depth: template.depth,
+        height: template.height,
+      });
+      setEditWidth(mmToCm(template.width).toString());
+      setEditDepth(mmToCm(template.depth).toString());
+      setEditHeight(mmToCm(template.height).toString());
+    }
+  };
+
+  // Drawing element editing handlers
+  const handleDrawingSizeChange = (dimension: 'width' | 'height', value: string) => {
+    if (!selectedElementId || !selectedDrawing) return;
+
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || numValue <= 0) return;
+
+    if (selectedDrawing.type === 'rectangle') {
+      if (dimension === 'width') {
+        updateElement(selectedElementId, { width: numValue });
+      } else {
+        updateElement(selectedElementId, { height: numValue });
+      }
+    } else if (selectedDrawing.type === 'circle') {
+      if (dimension === 'width') {
+        updateElement(selectedElementId, { rx: numValue / 2 });
+      } else {
+        updateElement(selectedElementId, { ry: numValue / 2 });
+      }
+    }
+  };
+
+  const handleDrawingColorChange = (type: 'stroke' | 'fill', color: string) => {
+    if (!selectedElementId || !selectedDrawing) return;
+
+    if (type === 'stroke') {
+      if (selectedDrawing.type === 'line' || selectedDrawing.type === 'path') {
+        updateElement(selectedElementId, { color });
+      } else if (selectedDrawing.type === 'rectangle' || selectedDrawing.type === 'circle') {
+        updateElement(selectedElementId, { strokeColor: color });
+      }
+    } else {
+      if (selectedDrawing.type === 'rectangle' || selectedDrawing.type === 'circle') {
+        // Extract RGB and keep alpha
+        const rgb = color.match(/\d+/g);
+        if (rgb && rgb.length >= 3) {
+          const currentOpacity = selectedDrawing.opacity || 0.3;
+          updateElement(selectedElementId, {
+            fillColor: `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${currentOpacity})`
+          });
+        }
+      }
+    }
+  };
+
+  const handleDrawingThicknessChange = (value: string) => {
+    if (!selectedElementId) return;
+
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && numValue > 0) {
+      updateElement(selectedElementId, { thickness: numValue });
+    }
+  };
+
+  const handleLineLengthChange = (value: string) => {
+    if (!selectedElementId || !selectedDrawing || selectedDrawing.type !== 'line') return;
+
+    const newLength = parseFloat(value);
+    if (isNaN(newLength) || newLength <= 0) return;
+
+    // Calculate current direction
+    const dx = selectedDrawing.endX - selectedDrawing.startX;
+    const dy = selectedDrawing.endY - selectedDrawing.startY;
+    const currentLength = Math.sqrt(dx * dx + dy * dy);
+
+    if (currentLength === 0) return;
+
+    // Calculate unit direction
+    const unitDx = dx / currentLength;
+    const unitDy = dy / currentLength;
+
+    // Calculate new end point
+    const newEndX = selectedDrawing.startX + unitDx * newLength;
+    const newEndY = selectedDrawing.startY + unitDy * newLength;
+
+    updateElement(selectedElementId, { endX: newEndX, endY: newEndY });
+  };
+
+  const handleTextContentChange = (value: string) => {
+    if (!selectedElementId) return;
+    updateElement(selectedElementId, { text: value });
+  };
+
+  const handleTextColorChange = (color: string) => {
+    if (!selectedElementId) return;
+    updateElement(selectedElementId, { color });
+  };
+
+  const handleFontSizeChange = (value: string) => {
+    if (!selectedElementId) return;
+
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && numValue > 0) {
+      updateElement(selectedElementId, { fontSize: numValue });
+    }
+  };
+
+  const predefinedColors = [
+    '#8B4513', '#A0522D', '#CD853F', '#D2691E',
+    '#4682B4', '#5F9EA0', '#6495ED', '#87CEEB',
+    '#228B22', '#32CD32', '#90EE90', '#98FB98',
+    '#DC143C', '#FF6347', '#FFA07A', '#FF8C00',
+    '#696969', '#808080', '#A9A9A9', '#C0C0C0',
+    '#000000', '#FFFFFF'
+  ];
+
+  // State for custom color pickers
+  const [showStrokeColorPicker, setShowStrokeColorPicker] = useState(false);
+  const [showFillColorPicker, setShowFillColorPicker] = useState(false);
+
+  // Desktop layout - Collapsed
+  if (isCollapsed) {
+    return (
+      <div className="w-12 bg-card border-l border-border flex flex-col items-center py-4">
+        <button
+          onClick={() => setIsCollapsed(false)}
+          className="p-2 hover:bg-accent rounded"
+          title="정보창"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M15 3L5 10l10 7V3z" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+
+  // Desktop layout - Content
+  return (
+    <div className="w-64 md:w-72 bg-card border-l border-border flex flex-col overflow-hidden">
+      <div className="p-4 border-b border-border flex items-center justify-between">
+        <h2 className="font-bold text-lg">정보창</h2>
+        <button
+          onClick={() => setIsCollapsed(true)}
+          className="p-1 hover:bg-accent rounded"
+          title="닫기"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M5 3l10 7-10 7V3z" />
+          </svg>
+        </button>
+      </div>
+
+      {!selectedFurniture && !selectedDrawing ? (
+        <div className="flex-1 flex items-center justify-center p-4 text-center text-muted-foreground">
+          선택된 항목이 없습니다
+        </div>
+      ) : selectedFurniture ? (
+        // Furniture properties
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div>
+            <div className="mb-3">
+              <label className="text-xs font-medium text-muted-foreground block mb-1">가구 이름</label>
+              <input
+                type="text"
+                value={editName}
+                placeholder={selectedFurniture.name[language]}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={(e) => handleNameChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur();
+                  }
+                }}
+                className="w-full px-2 py-1.5 text-sm bg-secondary border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                기본 이름: {selectedFurniture.name[language]}
+              </p>
+            </div>
+
+            {/* Editable Dimensions */}
+            <div className="space-y-2 mb-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">가로 (cm)</label>
+                <input
+                  type="number"
+                  value={editWidth}
+                  onChange={(e) => {
+                    setEditWidth(e.target.value);
+                    handleDimensionChange('width', e.target.value);
+                  }}
+                  min="1"
+                  step="0.1"
+                  className="w-full px-2 py-1.5 text-sm bg-secondary border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">깊이 (cm)</label>
+                <input
+                  type="number"
+                  value={editDepth}
+                  onChange={(e) => {
+                    setEditDepth(e.target.value);
+                    handleDimensionChange('depth', e.target.value);
+                  }}
+                  min="1"
+                  step="0.1"
+                  className="w-full px-2 py-1.5 text-sm bg-secondary border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">높이 (cm)</label>
+                <input
+                  type="number"
+                  value={editHeight}
+                  onChange={(e) => {
+                    setEditHeight(e.target.value);
+                    handleDimensionChange('height', e.target.value);
+                  }}
+                  min="1"
+                  step="0.1"
+                  className="w-full px-2 py-1.5 text-sm bg-secondary border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <button
+                onClick={handleResetToDefault}
+                className="w-full px-3 py-1.5 bg-secondary hover:bg-accent rounded text-xs font-medium transition-colors mt-1"
+              >
+                디폴트로 복원
+              </button>
+            </div>
+
+            <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border">
+              <div>X: {mmToCm(selectedFurniture.x).toFixed(1)} cm</div>
+              <div>Y: {mmToCm(selectedFurniture.y).toFixed(1)} cm</div>
+              <div>회전: {selectedFurniture.rotation}°</div>
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <h4 className="font-medium mb-2">색상 변경</h4>
+            <div className="grid grid-cols-5 gap-2">
+              {predefinedColors.slice(0, -2).map((color) => (
+                <button
+                  key={color}
+                  onClick={() => handleColorChange(color)}
+                  className={"w-10 h-10 rounded border-2 transition-transform hover:scale-110 " + (
+                    selectedFurniture.color === color
+                      ? 'border-primary'
+                      : 'border-transparent'
+                  )}
+                  style={{ backgroundColor: color }}
+                  title={color}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-4 space-y-2">
+            <button
+              onClick={() => furnitureSelectedId && rotateFurniture(furnitureSelectedId)}
+              className="w-full px-4 py-2 bg-secondary hover:bg-accent rounded text-sm transition-colors"
+            >
+              회전 (R)
+            </button>
+
+            <button
+              onClick={() => furnitureSelectedId && duplicateFurniture(furnitureSelectedId)}
+              className="w-full px-4 py-2 bg-secondary hover:bg-accent rounded text-sm transition-colors"
+            >
+              복제
+            </button>
+
+            <button
+              onClick={() => furnitureSelectedId && deleteFurniture(furnitureSelectedId)}
+              className="w-full px-4 py-2 bg-destructive text-destructive-foreground hover:opacity-90 rounded text-sm transition-opacity"
+            >
+              삭제 (Del)
+            </button>
+          </div>
+        </div>
+      ) : selectedDrawing ? (
+        // Drawing element properties
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div>
+            <h3 className="font-medium mb-3">
+              {selectedDrawing.type === 'line' && '선'}
+              {selectedDrawing.type === 'rectangle' && '사각형'}
+              {selectedDrawing.type === 'circle' && '원/타원'}
+              {selectedDrawing.type === 'text' && '텍스트'}
+              {selectedDrawing.type === 'path' && '자유곡선'}
+            </h3>
+
+            {/* Text content editing */}
+            {selectedDrawing.type === 'text' && (
+              <div className="space-y-2 mb-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">내용</label>
+                  <textarea
+                    value={editTextContent}
+                    onChange={(e) => {
+                      setEditTextContent(e.target.value);
+                      handleTextContentChange(e.target.value);
+                    }}
+                    className="w-full px-2 py-1.5 text-sm bg-secondary border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                    rows={3}
+                    placeholder="텍스트 입력..."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">글꼴 크기 (px)</label>
+                  <input
+                    type="number"
+                    value={editFontSize}
+                    onChange={(e) => {
+                      setEditFontSize(e.target.value);
+                      handleFontSizeChange(e.target.value);
+                    }}
+                    min="8"
+                    step="1"
+                    className="w-full px-2 py-1.5 text-sm bg-secondary border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Length editing for lines */}
+            {selectedDrawing.type === 'line' && (
+              <div className="space-y-2 mb-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">길이 (px)</label>
+                  <input
+                    type="number"
+                    value={editLineLength}
+                    onChange={(e) => {
+                      setEditLineLength(e.target.value);
+                      handleLineLengthChange(e.target.value);
+                    }}
+                    min="1"
+                    step="0.1"
+                    className="w-full px-2 py-1.5 text-sm bg-secondary border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Size editing for shapes */}
+            {(selectedDrawing.type === 'rectangle' || selectedDrawing.type === 'circle') && (
+              <div className="space-y-2 mb-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">가로 (px)</label>
+                  <input
+                    type="number"
+                    value={editDrawingWidth}
+                    onChange={(e) => {
+                      setEditDrawingWidth(e.target.value);
+                      handleDrawingSizeChange('width', e.target.value);
+                    }}
+                    min="1"
+                    step="1"
+                    className="w-full px-2 py-1.5 text-sm bg-secondary border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">세로 (px)</label>
+                  <input
+                    type="number"
+                    value={editDrawingHeight}
+                    onChange={(e) => {
+                      setEditDrawingHeight(e.target.value);
+                      handleDrawingSizeChange('height', e.target.value);
+                    }}
+                    min="1"
+                    step="1"
+                    className="w-full px-2 py-1.5 text-sm bg-secondary border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Thickness for all except text */}
+            {selectedDrawing.type !== 'text' && (
+              <div className="mb-3">
+                <label className="text-xs font-medium text-muted-foreground block mb-1">선 두께 (px)</label>
+                <input
+                  type="number"
+                  value={editThickness}
+                  onChange={(e) => {
+                    setEditThickness(e.target.value);
+                    handleDrawingThicknessChange(e.target.value);
+                  }}
+                  min="1"
+                  step="1"
+                  className="w-full px-2 py-1.5 text-sm bg-secondary border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Text color */}
+          {selectedDrawing.type === 'text' && (
+            <div className="border-t border-border pt-4">
+              <h4 className="font-medium mb-2">텍스트 색상</h4>
+              <div className="grid grid-cols-5 gap-2">
+                {predefinedColors.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => {
+                      handleTextColorChange(color);
+                      setEditTextColor(color);
+                    }}
+                    className={"w-10 h-10 rounded border-2 transition-transform hover:scale-110 " + (
+                      editTextColor === color
+                        ? 'border-primary'
+                        : 'border-transparent'
+                    )}
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Stroke color */}
+          {selectedDrawing.type !== 'text' && (
+            <div className="border-t border-border pt-4">
+              <h4 className="font-medium mb-2">
+                {selectedDrawing.type === 'line' || selectedDrawing.type === 'path' ? '선 색상' : '테두리 색상'}
+              </h4>
+              <div className="grid grid-cols-5 gap-2">
+                {predefinedColors.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => handleDrawingColorChange('stroke', color)}
+                    className={"w-10 h-10 rounded border-2 transition-transform hover:scale-110 " + (
+                      editStrokeColor === color
+                        ? 'border-primary'
+                        : 'border-transparent'
+                    )}
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+                <button
+                  onClick={() => setShowStrokeColorPicker(!showStrokeColorPicker)}
+                  className="w-10 h-10 rounded border-2 border-dashed border-gray-400 transition-transform hover:scale-110 flex items-center justify-center text-2xl text-gray-600"
+                  title="색상 선택기"
+                >
+                  +
+                </button>
+              </div>
+              {showStrokeColorPicker && (
+                <div className="mt-2 p-2 border border-border rounded">
+                  <input
+                    type="color"
+                    value={editStrokeColor}
+                    onChange={(e) => {
+                      handleDrawingColorChange('stroke', e.target.value);
+                      setEditStrokeColor(e.target.value);
+                    }}
+                    className="w-full h-10 cursor-pointer"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Fill color for shapes */}
+          {(selectedDrawing.type === 'rectangle' || selectedDrawing.type === 'circle') && (
+            <div className="border-t border-border pt-4">
+              <h4 className="font-medium mb-2">채우기 색상</h4>
+              <div className="grid grid-cols-5 gap-2">
+                {predefinedColors.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => handleDrawingColorChange('fill', color)}
+                    className="w-10 h-10 rounded border-2 border-transparent transition-transform hover:scale-110"
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+                <button
+                  onClick={() => setShowFillColorPicker(!showFillColorPicker)}
+                  className="w-10 h-10 rounded border-2 border-dashed border-gray-400 transition-transform hover:scale-110 flex items-center justify-center text-2xl text-gray-600"
+                  title="색상 선택기"
+                >
+                  +
+                </button>
+              </div>
+              {showFillColorPicker && (
+                <div className="mt-2 p-2 border border-border rounded">
+                  <input
+                    type="color"
+                    value={editFillColor.match(/#[0-9A-Fa-f]{6}/) ? editFillColor : '#000000'}
+                    onChange={(e) => {
+                      handleDrawingColorChange('fill', e.target.value);
+                      const rgb = e.target.value.match(/\d+/g);
+                      if (rgb && rgb.length >= 3) {
+                        const currentOpacity = selectedDrawing.opacity || 0.3;
+                        setEditFillColor(`rgba(${parseInt(e.target.value.slice(1, 3), 16)}, ${parseInt(e.target.value.slice(3, 5), 16)}, ${parseInt(e.target.value.slice(5, 7), 16)}, ${currentOpacity})`);
+                      }
+                    }}
+                    className="w-full h-10 cursor-pointer"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="border-t border-border pt-4">
+            <h4 className="font-medium mb-2">표시 옵션</h4>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showDimensionLabels}
+                onChange={(e) => setShowDimensionLabels(e.target.checked)}
+                className="w-4 h-4 cursor-pointer"
+              />
+              <span className="text-sm">치수 표시</span>
+            </label>
+          </div>
+
+          <div className="border-t border-border pt-4 space-y-2">
+            <button
+              onClick={() => selectedElementId && rotateElement(selectedElementId)}
+              className="w-full px-4 py-2 bg-secondary hover:bg-accent rounded text-sm transition-colors"
+            >
+              {t('rotate')} (R)
+            </button>
+
+            <button
+              onClick={() => selectedElementId && duplicateElement(selectedElementId)}
+              className="w-full px-4 py-2 bg-secondary hover:bg-accent rounded text-sm transition-colors"
+            >
+              {t('duplicate')}
+            </button>
+
+            <button
+              onClick={() => selectedElementId && deleteElement(selectedElementId)}
+              className="w-full px-4 py-2 bg-destructive text-destructive-foreground hover:opacity-90 rounded text-sm transition-opacity"
+            >
+              {t('delete')} (Del)
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
