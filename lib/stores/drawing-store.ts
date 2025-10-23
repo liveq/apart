@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
+import { useLayerStore } from './layer-store';
 
 export type DrawingTool = 'select' | 'line' | 'rectangle' | 'circle' | 'text' | 'pen' | 'eraser';
 export type LineStyle = 'solid' | 'dashed' | 'dotted';
@@ -21,6 +22,8 @@ export interface DrawingLine {
   thickness: number;
   lineStyle: LineStyle;
   rotation?: number;
+  layerId: string;
+  order: number;
 }
 
 export interface DrawingRectangle {
@@ -36,6 +39,8 @@ export interface DrawingRectangle {
   opacity: number;
   lineStyle: LineStyle;
   rotation?: number;
+  layerId: string;
+  order: number;
 }
 
 export interface DrawingCircle {
@@ -51,6 +56,8 @@ export interface DrawingCircle {
   opacity: number;
   lineStyle: LineStyle;
   rotation?: number;
+  layerId: string;
+  order: number;
 }
 
 export interface DrawingText {
@@ -63,6 +70,8 @@ export interface DrawingText {
   color: string;
   fontFamily: string;
   rotation?: number;
+  layerId: string;
+  order: number;
 }
 
 export interface DrawingPath {
@@ -73,6 +82,8 @@ export interface DrawingPath {
   thickness: number;
   lineStyle: LineStyle;
   rotation?: number;
+  layerId: string;
+  order: number;
 }
 
 export type DrawingElement = DrawingLine | DrawingRectangle | DrawingCircle | DrawingText | DrawingPath;
@@ -153,6 +164,14 @@ interface DrawingState {
   rotateElement: (id: string, angle?: number) => void;
   duplicateElement: (id: string) => void;
 
+  // Layer-related functions
+  getElementsByLayer: (layerId: string) => DrawingElement[];
+  moveElementToLayer: (elementId: string, targetLayerId: string) => void;
+  moveElementUp: (id: string) => void;
+  moveElementDown: (id: string) => void;
+  moveElementToTop: (id: string) => void;
+  moveElementToBottom: (id: string) => void;
+
   setSelectedElementId: (id: string | null) => void;
 
   setIsDrawing: (isDrawing: boolean) => void;
@@ -181,10 +200,10 @@ export const useDrawingStore = create<DrawingState>()(
         currentTool: 'select',
         eraserMode: 'universal',
         color: '#000000',
-        fillColor: 'rgba(255, 255, 255, 1)',
+        fillColor: 'rgba(255, 255, 255, 0.1)',
         thickness: 1,
         lineStyle: 'solid',
-        opacity: 1,
+        opacity: 0.1,
         fontSize: 16,
         fontFamily: 'Arial',
 
@@ -200,7 +219,7 @@ export const useDrawingStore = create<DrawingState>()(
 
         drawingMode: false,
         continuousMode: false,
-        toolbarCollapsed: false,
+        toolbarCollapsed: true,
 
         isDrawing: false,
         tempStartPoint: null,
@@ -232,8 +251,24 @@ export const useDrawingStore = create<DrawingState>()(
         setToolbarCollapsed: (collapsed) => set({ toolbarCollapsed: collapsed }),
 
         addElement: (element) => {
+          // Get active layer ID from layer store
+          const activeLayerId = useLayerStore.getState().activeLayerId;
+
+          // Get max order in the active layer
+          const elementsInLayer = get().elements.filter(el => el.layerId === activeLayerId);
+          const maxOrder = elementsInLayer.length > 0
+            ? Math.max(...elementsInLayer.map(el => el.order))
+            : 0;
+
+          // Add layerId and order to the element
+          const elementWithLayer = {
+            ...element,
+            layerId: activeLayerId,
+            order: maxOrder + 1,
+          };
+
           set((state) => ({
-            elements: [...state.elements, element]
+            elements: [...state.elements, elementWithLayer]
           }));
           // Auto-save after adding element
           setTimeout(() => get().saveCurrentWork(), 100);
@@ -278,9 +313,16 @@ export const useDrawingStore = create<DrawingState>()(
           const element = state.elements.find(el => el.id === id);
           if (!element) return;
 
+          // Get max order in the same layer
+          const elementsInLayer = state.elements.filter(el => el.layerId === element.layerId);
+          const maxOrder = elementsInLayer.length > 0
+            ? Math.max(...elementsInLayer.map(el => el.order))
+            : 0;
+
           const newElement = {
             ...element,
             id: `${element.type}-${Date.now()}`,
+            order: maxOrder + 1,
           };
 
           // Offset the duplicate slightly
@@ -312,6 +354,95 @@ export const useDrawingStore = create<DrawingState>()(
         setIsDrawing: (isDrawing) => set({ isDrawing }),
         setTempStartPoint: (point) => set({ tempStartPoint: point }),
         setTempEndPoint: (point) => set({ tempEndPoint: point }),
+
+        // Layer-related functions
+        getElementsByLayer: (layerId) => {
+          return get().elements.filter(el => el.layerId === layerId);
+        },
+
+        moveElementToLayer: (elementId, targetLayerId) => {
+          const element = get().elements.find(el => el.id === elementId);
+          if (!element) return;
+
+          // Get max order in target layer
+          const elementsInTargetLayer = get().elements.filter(el => el.layerId === targetLayerId);
+          const maxOrder = elementsInTargetLayer.length > 0
+            ? Math.max(...elementsInTargetLayer.map(el => el.order))
+            : 0;
+
+          get().updateElement(elementId, {
+            layerId: targetLayerId,
+            order: maxOrder + 1,
+          });
+        },
+
+        moveElementUp: (id) => {
+          const element = get().elements.find(el => el.id === id);
+          if (!element) return;
+
+          // Get elements in the same layer, sorted by order
+          const elementsInLayer = get().elements
+            .filter(el => el.layerId === element.layerId)
+            .sort((a, b) => a.order - b.order);
+
+          const currentIndex = elementsInLayer.findIndex(el => el.id === id);
+
+          // If not at the top, swap order with the element above
+          if (currentIndex < elementsInLayer.length - 1) {
+            const currentOrder = element.order;
+            const nextElement = elementsInLayer[currentIndex + 1];
+
+            get().updateElement(id, { order: nextElement.order });
+            get().updateElement(nextElement.id, { order: currentOrder });
+          }
+        },
+
+        moveElementDown: (id) => {
+          const element = get().elements.find(el => el.id === id);
+          if (!element) return;
+
+          // Get elements in the same layer, sorted by order
+          const elementsInLayer = get().elements
+            .filter(el => el.layerId === element.layerId)
+            .sort((a, b) => a.order - b.order);
+
+          const currentIndex = elementsInLayer.findIndex(el => el.id === id);
+
+          // If not at the bottom, swap order with the element below
+          if (currentIndex > 0) {
+            const currentOrder = element.order;
+            const prevElement = elementsInLayer[currentIndex - 1];
+
+            get().updateElement(id, { order: prevElement.order });
+            get().updateElement(prevElement.id, { order: currentOrder });
+          }
+        },
+
+        moveElementToTop: (id) => {
+          const element = get().elements.find(el => el.id === id);
+          if (!element) return;
+
+          // Get max order in the same layer
+          const elementsInLayer = get().elements.filter(el => el.layerId === element.layerId);
+          const maxOrder = elementsInLayer.length > 0
+            ? Math.max(...elementsInLayer.map(el => el.order))
+            : 0;
+
+          get().updateElement(id, { order: maxOrder + 1 });
+        },
+
+        moveElementToBottom: (id) => {
+          const element = get().elements.find(el => el.id === id);
+          if (!element) return;
+
+          // Get min order in the same layer
+          const elementsInLayer = get().elements.filter(el => el.layerId === element.layerId);
+          const minOrder = elementsInLayer.length > 0
+            ? Math.min(...elementsInLayer.map(el => el.order))
+            : 0;
+
+          get().updateElement(id, { order: minOrder - 1 });
+        },
 
         // Work management
         saveCurrentWork: (name?: string) => {

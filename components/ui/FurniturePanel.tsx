@@ -221,7 +221,7 @@ export default function FurniturePanel({ isMobile = false, onClose }: FurnitureP
 
         {/* Optimized grid layout */}
         <div className="flex-1 overflow-y-auto px-2 pb-4">
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-1.5">
             {filteredTemplates.map((template) => (
               <button
                 key={template.id}
@@ -232,12 +232,12 @@ export default function FurniturePanel({ isMobile = false, onClose }: FurnitureP
                 }}
               >
                 {/* Text overlay */}
-                <div className="aspect-square w-full flex items-end p-1.5">
-                  <div className="w-full bg-black/70 backdrop-blur-sm rounded px-1.5 py-1">
-                    <div className="font-semibold text-white leading-tight break-keep" style={{ fontSize: 'clamp(9px, 2.5vw, 11px)' }}>
+                <div className="aspect-square w-full flex items-end p-1">
+                  <div className="w-full bg-black/70 backdrop-blur-sm rounded px-1 py-0.5">
+                    <div className="font-semibold text-white leading-tight break-keep" style={{ fontSize: 'clamp(8px, 2vw, 10px)' }}>
                       {template.name[language]}
                     </div>
-                    <div className="text-white/80 mt-0.5" style={{ fontSize: 'clamp(8px, 2vw, 9px)' }}>
+                    <div className="text-white/80 mt-0.5" style={{ fontSize: 'clamp(7px, 1.8vw, 8px)' }}>
                       {mmToCm(template.width)}×{mmToCm(template.height)}
                     </div>
                   </div>

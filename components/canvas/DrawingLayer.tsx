@@ -2,6 +2,8 @@
 
 import { useRef, useState, useEffect } from 'react';
 import { useDrawingStore, DrawingElement, Point } from '@/lib/stores/drawing-store';
+import { useLayerStore } from '@/lib/stores/layer-store';
+import { useSelectionStore } from '@/lib/stores/selection-store';
 
 interface DrawingLayerProps {
   canvasWidth: number; // in px
@@ -13,6 +15,7 @@ interface DrawingLayerProps {
   canvasPanY: number;
   realWidth?: number; // actual width in mm
   realHeight?: number; // actual height in mm
+  calibrationMode?: boolean; // if calibration mode is active
 }
 
 export default function DrawingLayer({
@@ -25,6 +28,7 @@ export default function DrawingLayer({
   canvasPanY,
   realWidth,
   realHeight,
+  calibrationMode = false,
 }: DrawingLayerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const {
@@ -53,6 +57,8 @@ export default function DrawingLayer({
     deleteElement,
     setSelectedElementId,
   } = useDrawingStore();
+
+  const { isSelected: isItemSelected, toggleSelection } = useSelectionStore();
 
   const [isCurrentlyDrawing, setIsCurrentlyDrawing] = useState(false);
   const [tempStart, setTempStart] = useState<Point | null>(null);
@@ -358,6 +364,11 @@ export default function DrawingLayer({
   };
 
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    // If middle button, allow canvas panning (don't start drawing)
+    if (e.button === 1) {
+      return;
+    }
+
     // If space is pressed, allow panning regardless of tool
     if (spacePressed) {
       return;
@@ -366,8 +377,10 @@ export default function DrawingLayer({
     // Check if click is on the SVG background (not on any element)
     if (e.target === e.currentTarget) {
       if (currentTool === 'select') {
-        // Deselect when clicking on background in select mode
-        setSelectedElementId(null);
+        // Deselect when clicking on background in select mode (only if not using Ctrl)
+        if (!ctrlPressed) {
+          useSelectionStore.getState().clearSelection();
+        }
         return;
       }
       if (currentTool === 'eraser') {
@@ -464,74 +477,18 @@ export default function DrawingLayer({
       }
     } else if (currentTool === 'rectangle') {
       if (!isCurrentlyDrawing) {
-        // 첫 번째 클릭: 시작점 설정
+        // Start drawing rectangle (drag mode)
         setTempStart(snapped);
         setIsCurrentlyDrawing(true);
-      } else {
-        // 두 번째 클릭: 사각형 생성
-        if (tempStart && tempEnd) {
-          const x = Math.min(tempStart.x, tempEnd.x);
-          const y = Math.min(tempStart.y, tempEnd.y);
-          const width = Math.abs(tempEnd.x - tempStart.x);
-          const height = Math.abs(tempEnd.y - tempStart.y);
-
-          if (width > 5 && height > 5) {
-            addElement({
-              id: `rect-${Date.now()}`,
-              type: 'rectangle',
-              x,
-              y,
-              width,
-              height,
-              strokeColor: color,
-              fillColor,
-              thickness,
-              opacity: parseFloat(fillColor.split(',')[3]?.replace(')', '') || '0.3'),
-              lineStyle,
-            });
-          }
-
-          setIsCurrentlyDrawing(false);
-          setTempStart(null);
-          setTempEnd(null);
-          setGuideLines([]);
-        }
       }
+      // Drag mode: mouseUp will create the rectangle
     } else if (currentTool === 'circle') {
       if (!isCurrentlyDrawing) {
-        // 첫 번째 클릭: 시작점 설정
+        // Start drawing circle (drag mode)
         setTempStart(snapped);
         setIsCurrentlyDrawing(true);
-      } else {
-        // 두 번째 클릭: 원 생성
-        if (tempStart && tempEnd) {
-          const cx = (tempStart.x + tempEnd.x) / 2;
-          const cy = (tempStart.y + tempEnd.y) / 2;
-          const rx = Math.abs(tempEnd.x - tempStart.x) / 2;
-          const ry = Math.abs(tempEnd.y - tempStart.y) / 2;
-
-          if (rx > 5 && ry > 5) {
-            addElement({
-              id: `circle-${Date.now()}`,
-              type: 'circle',
-              cx,
-              cy,
-              rx,
-              ry,
-              strokeColor: color,
-              fillColor,
-              thickness,
-              opacity: parseFloat(fillColor.split(',')[3]?.replace(')', '') || '0.3'),
-              lineStyle,
-            });
-          }
-
-          setIsCurrentlyDrawing(false);
-          setTempStart(null);
-          setTempEnd(null);
-          setGuideLines([]);
-        }
       }
+      // Drag mode: mouseUp will create the circle
     }
   };
 
@@ -872,8 +829,64 @@ export default function DrawingLayer({
       return;
     }
 
-    // Rectangle and circle now use click-click mode in handleMouseDown
-    // No longer need mouseUp handling
+    // Handle rectangle/circle drag completion
+    if (isCurrentlyDrawing && tempStart && tempEnd) {
+      if (currentTool === 'rectangle') {
+        const x = Math.min(tempStart.x, tempEnd.x);
+        const y = Math.min(tempStart.y, tempEnd.y);
+        const width = Math.abs(tempEnd.x - tempStart.x);
+        const height = Math.abs(tempEnd.y - tempStart.y);
+
+        if (width > 5 && height > 5) {
+          addElement({
+            id: `rect-${Date.now()}`,
+            type: 'rectangle',
+            x,
+            y,
+            width,
+            height,
+            strokeColor: color,
+            fillColor,
+            thickness,
+            opacity: parseFloat(fillColor.split(',')[3]?.replace(')', '') || '0.3'),
+            lineStyle,
+          });
+        }
+
+        setIsCurrentlyDrawing(false);
+        setTempStart(null);
+        setTempEnd(null);
+        setGuideLines([]);
+        setSnapPoints([]);
+      } else if (currentTool === 'circle') {
+        const rx = Math.abs(tempEnd.x - tempStart.x) / 2;
+        const ry = Math.abs(tempEnd.y - tempStart.y) / 2;
+        const cx = (tempStart.x + tempEnd.x) / 2;
+        const cy = (tempStart.y + tempEnd.y) / 2;
+
+        if (rx > 5 && ry > 5) {
+          addElement({
+            id: `circle-${Date.now()}`,
+            type: 'circle',
+            cx,
+            cy,
+            rx,
+            ry,
+            strokeColor: color,
+            fillColor,
+            thickness,
+            opacity: parseFloat(fillColor.split(',')[3]?.replace(')', '') || '0.3'),
+            lineStyle,
+          });
+        }
+
+        setIsCurrentlyDrawing(false);
+        setTempStart(null);
+        setTempEnd(null);
+        setGuideLines([]);
+        setSnapPoints([]);
+      }
+    }
 
     // End element resizing
     if (isResizing) {
@@ -1026,7 +1039,7 @@ export default function DrawingLayer({
       <g key="grid-info">
         <rect
           x={5}
-          y={5}
+          y={-66}
           width={150}
           height={60}
           fill="rgba(255, 255, 255, 0.95)"
@@ -1036,7 +1049,7 @@ export default function DrawingLayer({
         />
         <text
           x={12}
-          y={20}
+          y={-51}
           fontSize="12"
           fill="#000"
           fontWeight="bold"
@@ -1046,7 +1059,7 @@ export default function DrawingLayer({
         </text>
         <text
           x={12}
-          y={35}
+          y={-36}
           fontSize="10"
           fill="#555"
           style={{ userSelect: 'none', pointerEvents: 'none' }}
@@ -1055,7 +1068,7 @@ export default function DrawingLayer({
         </text>
         <text
           x={12}
-          y={50}
+          y={-21}
           fontSize="10"
           fill="#666"
           style={{ userSelect: 'none', pointerEvents: 'none' }}
@@ -1365,6 +1378,26 @@ export default function DrawingLayer({
                 mouseY: svgPoint.y,
               });
             }}
+            onTouchStart={(e) => {
+              if (e.touches.length !== 1) return;
+              e.stopPropagation();
+              e.preventDefault();
+
+              const touch = e.touches[0];
+              const svgPoint = screenToSVG(touch.clientX, touch.clientY);
+
+              setIsResizing(true);
+              setResizeHandle(handle);
+              setResizeStart({
+                element: { ...element },
+                width: element.width,
+                height: element.height,
+                x: element.x,
+                y: element.y,
+                mouseX: svgPoint.x,
+                mouseY: svgPoint.y,
+              });
+            }}
             style={{
               cursor: getResizeCursor(handle, rotation),
               pointerEvents: 'auto',
@@ -1403,6 +1436,26 @@ export default function DrawingLayer({
             onMouseDown={(e) => {
               e.stopPropagation();
               const svgPoint = screenToSVG(e.clientX, e.clientY);
+
+              setIsResizing(true);
+              setResizeHandle(handle);
+              setResizeStart({
+                element: { ...element },
+                cx: centerX,
+                cy: centerY,
+                rx: element.rx,
+                ry: element.ry,
+                mouseX: svgPoint.x,
+                mouseY: svgPoint.y,
+              });
+            }}
+            onTouchStart={(e) => {
+              if (e.touches.length !== 1) return;
+              e.stopPropagation();
+              e.preventDefault();
+
+              const touch = e.touches[0];
+              const svgPoint = screenToSVG(touch.clientX, touch.clientY);
 
               setIsResizing(true);
               setResizeHandle(handle);
@@ -1475,6 +1528,17 @@ export default function DrawingLayer({
                 element: { ...element },
               });
             }}
+            onTouchStart={(e) => {
+              if (e.touches.length !== 1) return;
+              e.stopPropagation();
+              e.preventDefault();
+
+              setIsResizing(true);
+              setResizeHandle(handle);
+              setResizeStart({
+                element: { ...element },
+              });
+            }}
             style={{
               cursor: 'move',
               pointerEvents: 'auto',
@@ -1487,8 +1551,31 @@ export default function DrawingLayer({
     return handles;
   };
 
+  // Common touch handler for elements
+  const createElementTouchHandler = (element: DrawingElement) => {
+    return {
+      onTouchStart: (e: React.TouchEvent) => {
+        if (e.touches.length !== 1) return;
+
+        const touch = e.touches[0];
+        if (currentTool === 'select') {
+          // Mobile: Allow touch event to bubble to FloorPlanCanvas for panning
+          // Don't start dragging - just select the element
+          toggleSelection(element.id, 'drawing', false); // No ctrl on touch
+          // Don't call e.stopPropagation() - let it bubble for panning
+          // Don't set isDraggingElement - element dragging only works with mouse
+        } else if (currentTool === 'eraser' && (eraserMode === 'universal' || eraserMode === 'shape')) {
+          e.stopPropagation();
+          deleteElement(element.id);
+        }
+      },
+    };
+  };
+
   const renderElement = (element: DrawingElement) => {
-    const isSelected = element.id === selectedElementId;
+    const isSelected = isItemSelected(element.id, 'drawing');
+    const layer = layerMap.get(element.layerId);
+    const layerOpacity = (layer?.opacity ?? 100) / 100;
 
     switch (element.type) {
       case 'line': {
@@ -1504,11 +1591,13 @@ export default function DrawingLayer({
             stroke={element.color}
             strokeWidth={element.thickness}
             strokeDasharray={getStrokeDashArray(element.lineStyle)}
+            strokeOpacity={layerOpacity}
             transform={element.rotation ? `rotate(${element.rotation} ${lineCenterX} ${lineCenterY})` : undefined}
+            {...createElementTouchHandler(element)}
             onMouseDown={(e) => {
               if (currentTool === 'select') {
                 e.stopPropagation();
-                setSelectedElementId(element.id);
+                toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
                 const svgPoint = screenToSVG(e.clientX, e.clientY);
                 setIsDraggingElement(true);
                 setDragStartPoint(svgPoint);
@@ -1518,6 +1607,7 @@ export default function DrawingLayer({
                 deleteElement(element.id);
               }
             }}
+            onClick={(e) => e.stopPropagation()}
             style={{
               cursor: currentTool === 'select' ? (isDraggingElement ? 'grabbing' : 'grab') : currentTool === 'eraser' ? 'not-allowed' : 'default',
               strokeWidth: isSelected ? element.thickness + 2 : element.thickness,
@@ -1537,12 +1627,15 @@ export default function DrawingLayer({
             stroke={element.strokeColor}
             strokeWidth={element.thickness}
             strokeDasharray={getStrokeDashArray(element.lineStyle)}
+            strokeOpacity={layerOpacity}
             fill={element.fillColor}
+            fillOpacity={layerOpacity * element.opacity}
             transform={element.rotation ? `rotate(${element.rotation} ${element.x + element.width / 2} ${element.y + element.height / 2})` : undefined}
+            {...createElementTouchHandler(element)}
             onMouseDown={(e) => {
               if (currentTool === 'select') {
                 e.stopPropagation();
-                setSelectedElementId(element.id);
+                toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
                 const svgPoint = screenToSVG(e.clientX, e.clientY);
                 setIsDraggingElement(true);
                 setDragStartPoint(svgPoint);
@@ -1552,6 +1645,7 @@ export default function DrawingLayer({
                 deleteElement(element.id);
               }
             }}
+            onClick={(e) => e.stopPropagation()}
             style={{
               cursor: currentTool === 'select' ? (isDraggingElement ? 'grabbing' : 'grab') : currentTool === 'eraser' ? 'not-allowed' : 'default',
               strokeWidth: isSelected ? element.thickness + 2 : element.thickness,
@@ -1570,12 +1664,15 @@ export default function DrawingLayer({
             stroke={element.strokeColor}
             strokeWidth={element.thickness}
             strokeDasharray={getStrokeDashArray(element.lineStyle)}
+            strokeOpacity={layerOpacity}
             fill={element.fillColor}
+            fillOpacity={layerOpacity * element.opacity}
             transform={element.rotation ? `rotate(${element.rotation} ${element.cx} ${element.cy})` : undefined}
+            {...createElementTouchHandler(element)}
             onMouseDown={(e) => {
               if (currentTool === 'select') {
                 e.stopPropagation();
-                setSelectedElementId(element.id);
+                toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
                 const svgPoint = screenToSVG(e.clientX, e.clientY);
                 setIsDraggingElement(true);
                 setDragStartPoint(svgPoint);
@@ -1585,6 +1682,7 @@ export default function DrawingLayer({
                 deleteElement(element.id);
               }
             }}
+            onClick={(e) => e.stopPropagation()}
             style={{
               cursor: currentTool === 'select' ? (isDraggingElement ? 'grabbing' : 'grab') : currentTool === 'eraser' ? 'not-allowed' : 'default',
               strokeWidth: isSelected ? element.thickness + 2 : element.thickness,
@@ -1600,8 +1698,10 @@ export default function DrawingLayer({
             y={element.y}
             fontSize={element.fontSize}
             fill={element.color}
+            fillOpacity={layerOpacity}
             fontFamily={element.fontFamily}
             transform={element.rotation ? `rotate(${element.rotation} ${element.x} ${element.y})` : undefined}
+            {...createElementTouchHandler(element)}
             onDoubleClick={(e) => {
               // Double-click to edit in select mode
               if (currentTool === 'select') {
@@ -1614,7 +1714,7 @@ export default function DrawingLayer({
             onMouseDown={(e) => {
               if (currentTool === 'select') {
                 e.stopPropagation();
-                setSelectedElementId(element.id);
+                toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
                 const svgPoint = screenToSVG(e.clientX, e.clientY);
                 setIsDraggingElement(true);
                 setDragStartPoint(svgPoint);
@@ -1630,6 +1730,7 @@ export default function DrawingLayer({
                 deleteElement(element.id);
               }
             }}
+            onClick={(e) => e.stopPropagation()}
             style={{
               cursor: currentTool === 'text' ? 'text' : currentTool === 'select' ? (isDraggingElement ? 'grabbing' : 'grab') : currentTool === 'eraser' ? 'not-allowed' : 'default',
               userSelect: 'none',
@@ -1657,13 +1758,15 @@ export default function DrawingLayer({
             stroke={element.color}
             strokeWidth={element.thickness}
             strokeDasharray={getStrokeDashArray(element.lineStyle)}
+            strokeOpacity={layerOpacity}
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
+            {...createElementTouchHandler(element)}
             onMouseDown={(e) => {
               if (currentTool === 'select') {
                 e.stopPropagation();
-                setSelectedElementId(element.id);
+                toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
                 const svgPoint = screenToSVG(e.clientX, e.clientY);
                 setIsDraggingElement(true);
                 setDragStartPoint(svgPoint);
@@ -1673,6 +1776,7 @@ export default function DrawingLayer({
                 deleteElement(element.id);
               }
             }}
+            onClick={(e) => e.stopPropagation()}
             style={{
               cursor: currentTool === 'select' ? (isDraggingElement ? 'grabbing' : 'grab') : currentTool === 'eraser' ? 'not-allowed' : 'default',
               strokeWidth: isSelected ? element.thickness + 2 : element.thickness,
@@ -1684,6 +1788,30 @@ export default function DrawingLayer({
         return null;
     }
   };
+
+  // Get layers and create layer map for rendering
+  const layers = useLayerStore((state) => state.layers);
+  const layerMap = new Map(layers.map(l => [l.id, l]));
+
+  // Filter elements by layer visibility and sort by layer order + element order
+  const visibleElements = elements
+    .filter(element => {
+      const layer = layerMap.get(element.layerId);
+      return layer && layer.visible;
+    })
+    .sort((a, b) => {
+      const layerA = layerMap.get(a.layerId);
+      const layerB = layerMap.get(b.layerId);
+      if (!layerA || !layerB) return 0;
+
+      // First sort by layer order (lower order = render first = behind)
+      if (layerA.order !== layerB.order) {
+        return layerA.order - layerB.order;
+      }
+
+      // Then sort by element order within the layer
+      return a.order - b.order;
+    });
 
   return (
     <>
@@ -1698,6 +1826,12 @@ export default function DrawingLayer({
           zIndex: 150,
           cursor: spacePressed ? 'grab' : (currentTool === 'select' ? 'default' : 'crosshair'),
           overflow: 'visible',
+          // Select mode: no touchAction to allow FloorPlanCanvas to handle panning
+          // Drawing mode: 'none' to prevent browser scrolling
+          touchAction: (calibrationMode || currentTool === 'select') ? undefined : 'none',
+          // In select mode, make SVG transparent to pointer events so touches pass through to FloorPlanCanvas
+          // Individual elements will have pointerEvents: 'auto' to remain interactive
+          pointerEvents: calibrationMode ? 'none' : (currentTool === 'select' ? 'none' : 'auto'),
         }}
         viewBox={`-100 -100 ${canvasWidth + 200} ${canvasHeight + 200}`}
         onMouseDown={handleMouseDown}
@@ -1709,6 +1843,39 @@ export default function DrawingLayer({
             setSnapPoints([]);
           }
         }}
+        // Only add touch handlers in drawing mode (not select/calibration)
+        // In select/calibration mode, remove handlers completely so FloorPlanCanvas can handle touches
+        {...((!calibrationMode && currentTool !== 'select') ? {
+          onTouchStart: (e: React.TouchEvent) => {
+            if (e.touches.length === 1) {
+              const touch = e.touches[0];
+              const mouseEvent = new MouseEvent('mousedown', {
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                button: 0,
+                bubbles: true,
+              });
+              handleMouseDown(mouseEvent as any);
+            }
+          },
+          onTouchMove: (e: React.TouchEvent) => {
+            if (e.touches.length === 1) {
+              const touch = e.touches[0];
+              const mouseEvent = new MouseEvent('mousemove', {
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                bubbles: true,
+              });
+              handleMouseMove(mouseEvent as any);
+            }
+          },
+          onTouchEnd: (e: React.TouchEvent) => {
+            const mouseEvent = new MouseEvent('mouseup', {
+              bubbles: true,
+            });
+            handleMouseUp(mouseEvent as any);
+          }
+        } : {})}
       >
         {/* Grid */}
         <g opacity="0.5">{renderGrid()}</g>
@@ -1717,17 +1884,17 @@ export default function DrawingLayer({
         <g>{renderGridLabels()}</g>
 
         {/* Drawn elements */}
-        <g>{elements.map(renderElement)}</g>
+        <g>{visibleElements.map(renderElement)}</g>
 
         {/* Resize handles for selected element */}
-        <g>{elements.map(renderResizeHandles)}</g>
+        <g>{visibleElements.map(renderResizeHandles)}</g>
 
         {/* Dimension labels for shapes */}
-        <g>{elements.map(renderDimensionLabel)}</g>
+        <g>{visibleElements.map(renderDimensionLabel)}</g>
 
         {/* Smart guides */}
-        {guideLines.map((guide, index) => (
-          guide.type === 'horizontal' ? (
+        {guideLines.map((guide, index) => {
+          return guide.type === 'horizontal' ? (
             <line
               key={`guide-h-${index}`}
               x1={-100}
@@ -1753,8 +1920,8 @@ export default function DrawingLayer({
               opacity="0.7"
               pointerEvents="none"
             />
-          )
-        ))}
+          );
+        })}
 
         {/* Snap point markers (circles) */}
         {snapPoints.map((point, index) => (

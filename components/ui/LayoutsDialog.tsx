@@ -16,7 +16,13 @@ export default function LayoutsDialog({ open, onClose, mode = 'save' }: LayoutsD
   const { t } = useTranslation();
   const { savedLayouts, saveLayout, loadLayout, deleteLayout } = useAppStore();
   const { furniture } = useFurnitureStore();
-  const { saveCurrentWork: saveDrawingWork, drawingMode } = useDrawingStore();
+  const {
+    saveCurrentWork: saveDrawingWork,
+    drawingMode,
+    getSavedWorks,
+    loadWork: loadDrawingWork,
+    deleteWork: deleteDrawingWork
+  } = useDrawingStore();
 
   // 디폴트 이름: 년월일시분초
   const getDefaultName = () => {
@@ -34,16 +40,17 @@ export default function LayoutsDialog({ open, onClose, mode = 'save' }: LayoutsD
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [showNameError, setShowNameError] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [, forceUpdate] = useState({});
+  const [deleteIsDrawingWork, setDeleteIsDrawingWork] = useState(false);
+  const [savedDrawingWorks, setSavedDrawingWorks] = useState<any[]>([]);
 
-  // Reset state when dialog opens
+  // Reset state and load saved works when dialog opens
   useEffect(() => {
     if (open) {
       setLayoutName(getDefaultName());
       setShowSaveForm(mode === 'save');
       setShowNameError(false);
-      // Force re-render to show updated layouts
-      forceUpdate({});
+      // Load drawing works from localStorage
+      setSavedDrawingWorks(getSavedWorks());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode]);
@@ -60,6 +67,8 @@ export default function LayoutsDialog({ open, onClose, mode = 'save' }: LayoutsD
     if (drawingMode) {
       // Save drawing work with custom name
       saveDrawingWork(layoutName.trim());
+      // Reload drawing works list
+      setSavedDrawingWorks(getSavedWorks());
     } else {
       // Save furniture layout
       saveLayout(layoutName.trim(), furniture);
@@ -70,42 +79,57 @@ export default function LayoutsDialog({ open, onClose, mode = 'save' }: LayoutsD
     onClose();
   };
 
-  const handleLoad = (id: string) => {
-    const loadedFurniture = loadLayout(id);
-    if (loadedFurniture) {
-      // Replace current furniture with loaded layout
-      const furnitureStore = useFurnitureStore.getState();
-      furnitureStore.furniture.forEach((item) => {
-        furnitureStore.deleteFurniture(item.id);
-      });
-
-      loadedFurniture.forEach((item) => {
-        furnitureStore.addFurniture({
-          templateId: item.templateId,
-          name: item.name,
-          x: item.x,
-          y: item.y,
-          width: item.width,
-          depth: item.depth || item.height, // fallback for old layouts
-          height: item.height,
-          rotation: item.rotation,
-          color: item.color,
-          category: item.category,
-        });
-      });
-
+  const handleLoad = (id: string, isDrawingWork: boolean = false) => {
+    if (isDrawingWork) {
+      // Load drawing work
+      loadDrawingWork(id);
       onClose();
+    } else {
+      // Load furniture layout
+      const loadedFurniture = loadLayout(id);
+      if (loadedFurniture) {
+        // Replace current furniture with loaded layout
+        const furnitureStore = useFurnitureStore.getState();
+        furnitureStore.furniture.forEach((item) => {
+          furnitureStore.deleteFurniture(item.id);
+        });
+
+        loadedFurniture.forEach((item) => {
+          furnitureStore.addFurniture({
+            templateId: item.templateId,
+            name: item.name,
+            x: item.x,
+            y: item.y,
+            width: item.width,
+            depth: item.depth || item.height, // fallback for old layouts
+            height: item.height,
+            rotation: item.rotation,
+            color: item.color,
+            category: item.category,
+          });
+        });
+
+        onClose();
+      }
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (id: string, isDrawingWork: boolean = false) => {
     setDeleteConfirmId(id);
+    setDeleteIsDrawingWork(isDrawingWork);
   };
 
   const confirmDelete = () => {
     if (deleteConfirmId) {
-      deleteLayout(deleteConfirmId);
+      if (deleteIsDrawingWork) {
+        deleteDrawingWork(deleteConfirmId);
+        // Reload drawing works list
+        setSavedDrawingWorks(getSavedWorks());
+      } else {
+        deleteLayout(deleteConfirmId);
+      }
       setDeleteConfirmId(null);
+      setDeleteIsDrawingWork(false);
     }
   };
 
@@ -190,50 +214,102 @@ export default function LayoutsDialog({ open, onClose, mode = 'save' }: LayoutsD
 
         {/* Saved Layouts List */}
         <div className="flex-1 overflow-y-auto">
-          {savedLayouts.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              {t('newLayout')}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {savedLayouts.map((layout) => (
-                <div
-                  key={layout.id}
-                  className="p-4 bg-secondary hover:bg-accent rounded border border-border transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-lg truncate">{layout.name}</h3>
-                      <div className="text-sm text-muted-foreground space-y-1 mt-1">
-                        <div>
-                          {t('createdAt')}: {formatDate(layout.createdAt)}
-                        </div>
-                        <div>
-                          {t('updatedAt')}: {formatDate(layout.updatedAt)}
-                        </div>
-                        <div>
-                          {layout.furniture.length} items
+          {drawingMode ? (
+            // Show Drawing Works
+            savedDrawingWorks.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                {t('newLayout')}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {savedDrawingWorks.map((work) => (
+                  <div
+                    key={work.id}
+                    className="p-4 bg-secondary hover:bg-accent rounded border border-border transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-lg truncate">
+                          {work.name || formatDate(work.timestamp)}
+                        </h3>
+                        <div className="text-sm text-muted-foreground space-y-1 mt-1">
+                          <div>
+                            {formatDate(work.timestamp)}
+                          </div>
+                          <div>
+                            {work.canvasWidth} × {work.canvasHeight} {work.canvasUnit}
+                          </div>
+                          <div>
+                            {work.elements.length} elements
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => handleLoad(layout.id)}
-                        className="px-3 py-2 bg-primary text-primary-foreground hover:opacity-90 rounded text-sm transition-opacity"
-                      >
-                        {t('load')}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(layout.id)}
-                        className="px-3 py-2 bg-destructive text-destructive-foreground hover:opacity-90 rounded text-sm transition-opacity"
-                      >
-                        {t('delete')}
-                      </button>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => handleLoad(work.id, true)}
+                          className="px-3 py-2 bg-primary text-primary-foreground hover:opacity-90 rounded text-sm transition-opacity"
+                        >
+                          {t('load')}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(work.id, true)}
+                          className="px-3 py-2 bg-destructive text-destructive-foreground hover:opacity-90 rounded text-sm transition-opacity"
+                        >
+                          {t('delete')}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )
+          ) : (
+            // Show Furniture Layouts
+            savedLayouts.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                {t('newLayout')}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {savedLayouts.map((layout) => (
+                  <div
+                    key={layout.id}
+                    className="p-4 bg-secondary hover:bg-accent rounded border border-border transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-lg truncate">{layout.name}</h3>
+                        <div className="text-sm text-muted-foreground space-y-1 mt-1">
+                          <div>
+                            {t('createdAt')}: {formatDate(layout.createdAt)}
+                          </div>
+                          <div>
+                            {t('updatedAt')}: {formatDate(layout.updatedAt)}
+                          </div>
+                          <div>
+                            {layout.furniture.length} items
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => handleLoad(layout.id, false)}
+                          className="px-3 py-2 bg-primary text-primary-foreground hover:opacity-90 rounded text-sm transition-opacity"
+                        >
+                          {t('load')}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(layout.id, false)}
+                          className="px-3 py-2 bg-destructive text-destructive-foreground hover:opacity-90 rounded text-sm transition-opacity"
+                        >
+                          {t('delete')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
         </div>
 

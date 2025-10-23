@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { useLayerStore } from './layer-store';
 
 export interface FurnitureItem {
   id: string;
@@ -18,6 +19,8 @@ export interface FurnitureItem {
   color: string;
   category: string;
   shape?: 'rectangle' | 'circle'; // 도형 유형 (기본값: rectangle)
+  layerId: string; // 레이어 ID
+  order: number; // 레이어 내 순서 (높을수록 위)
 }
 
 export interface MeasurementLine {
@@ -40,13 +43,21 @@ interface FurnitureState {
   snapSize: number; // mm
 
   // Actions
-  addFurniture: (item: Omit<FurnitureItem, 'id'>) => void;
+  addFurniture: (item: Omit<FurnitureItem, 'id' | 'layerId' | 'order'>) => void;
   updateFurniture: (id: string, updates: Partial<FurnitureItem>) => void;
   deleteFurniture: (id: string) => void;
   duplicateFurniture: (id: string) => void;
   rotateFurniture: (id: string) => void;
   setSelectedId: (id: string | null) => void;
   clearAll: () => void;
+
+  // Layer management
+  getFurnitureByLayer: (layerId: string) => FurnitureItem[];
+  moveFurnitureToLayer: (furnitureId: string, targetLayerId: string) => void;
+  moveElementUp: (id: string) => void;
+  moveElementDown: (id: string) => void;
+  moveElementToTop: (id: string) => void;
+  moveElementToBottom: (id: string) => void;
 
   // History
   undo: () => void;
@@ -80,9 +91,17 @@ export const useFurnitureStore = create<FurnitureState>()(
       snapSize: 10, // 1cm = 10mm (default)
 
       addFurniture: (item) => {
+        const activeLayerId = useLayerStore.getState().activeLayerId;
+        const furnitureInLayer = get().getFurnitureByLayer(activeLayerId);
+        const maxOrder = furnitureInLayer.length > 0
+          ? Math.max(...furnitureInLayer.map(f => f.order))
+          : 0;
+
         const newItem: FurnitureItem = {
           ...item,
           id: `furniture-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          layerId: activeLayerId,
+          order: maxOrder + 1,
         };
         set((state) => ({
           furniture: [...state.furniture, newItem],
@@ -109,11 +128,17 @@ export const useFurnitureStore = create<FurnitureState>()(
       duplicateFurniture: (id) => {
         const item = get().furniture.find((f) => f.id === id);
         if (item) {
+          const furnitureInLayer = get().getFurnitureByLayer(item.layerId);
+          const maxOrder = furnitureInLayer.length > 0
+            ? Math.max(...furnitureInLayer.map(f => f.order))
+            : 0;
+
           const newItem: FurnitureItem = {
             ...item,
             id: `furniture-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             x: item.x + 200, // offset by 20cm
             y: item.y + 200,
+            order: maxOrder + 1,
           };
           set((state) => ({
             furniture: [...state.furniture, newItem],
@@ -144,6 +169,115 @@ export const useFurnitureStore = create<FurnitureState>()(
       clearAll: () => {
         set({ furniture: [], selectedId: null });
         get().saveToHistory();
+      },
+
+      getFurnitureByLayer: (layerId) => {
+        return get().furniture.filter((item) => item.layerId === layerId);
+      },
+
+      moveFurnitureToLayer: (furnitureId, targetLayerId) => {
+        const furniture = get().furniture.find((f) => f.id === furnitureId);
+        if (!furniture) return;
+
+        const furnitureInTargetLayer = get().getFurnitureByLayer(targetLayerId);
+        const maxOrder = furnitureInTargetLayer.length > 0
+          ? Math.max(...furnitureInTargetLayer.map(f => f.order))
+          : 0;
+
+        set((state) => ({
+          furniture: state.furniture.map((item) =>
+            item.id === furnitureId
+              ? { ...item, layerId: targetLayerId, order: maxOrder + 1 }
+              : item
+          ),
+        }));
+        get().saveToHistory();
+      },
+
+      moveElementUp: (id) => {
+        const item = get().furniture.find((f) => f.id === id);
+        if (!item) return;
+
+        const furnitureInLayer = get()
+          .getFurnitureByLayer(item.layerId)
+          .sort((a, b) => a.order - b.order);
+
+        const index = furnitureInLayer.findIndex((f) => f.id === id);
+        if (index < furnitureInLayer.length - 1) {
+          const currentOrder = furnitureInLayer[index].order;
+          const nextOrder = furnitureInLayer[index + 1].order;
+
+          set((state) => ({
+            furniture: state.furniture.map((f) => {
+              if (f.id === id) return { ...f, order: nextOrder };
+              if (f.id === furnitureInLayer[index + 1].id) return { ...f, order: currentOrder };
+              return f;
+            }),
+          }));
+          get().saveToHistory();
+        }
+      },
+
+      moveElementDown: (id) => {
+        const item = get().furniture.find((f) => f.id === id);
+        if (!item) return;
+
+        const furnitureInLayer = get()
+          .getFurnitureByLayer(item.layerId)
+          .sort((a, b) => a.order - b.order);
+
+        const index = furnitureInLayer.findIndex((f) => f.id === id);
+        if (index > 0) {
+          const currentOrder = furnitureInLayer[index].order;
+          const prevOrder = furnitureInLayer[index - 1].order;
+
+          set((state) => ({
+            furniture: state.furniture.map((f) => {
+              if (f.id === id) return { ...f, order: prevOrder };
+              if (f.id === furnitureInLayer[index - 1].id) return { ...f, order: currentOrder };
+              return f;
+            }),
+          }));
+          get().saveToHistory();
+        }
+      },
+
+      moveElementToTop: (id) => {
+        const item = get().furniture.find((f) => f.id === id);
+        if (!item) return;
+
+        const furnitureInLayer = get().getFurnitureByLayer(item.layerId);
+        const maxOrder = furnitureInLayer.length > 0
+          ? Math.max(...furnitureInLayer.map(f => f.order))
+          : 0;
+
+        if (item.order < maxOrder) {
+          set((state) => ({
+            furniture: state.furniture.map((f) =>
+              f.id === id ? { ...f, order: maxOrder + 1 } : f
+            ),
+          }));
+          get().saveToHistory();
+        }
+      },
+
+      moveElementToBottom: (id) => {
+        const item = get().furniture.find((f) => f.id === id);
+        if (!item) return;
+
+        const furnitureInLayer = get().getFurnitureByLayer(item.layerId);
+        const minOrder = furnitureInLayer.length > 0
+          ? Math.min(...furnitureInLayer.map(f => f.order))
+          : 0;
+
+        if (item.order > minOrder) {
+          set((state) => ({
+            furniture: state.furniture.map((f) =>
+              f.id === id ? { ...f, order: minOrder - 1 } : f
+            ),
+          }));
+          get().saveToHistory();
+        }
       },
 
       undo: () => {

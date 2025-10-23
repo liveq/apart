@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useFurnitureStore } from '@/lib/stores/furniture-store';
 import { useDrawingStore } from '@/lib/stores/drawing-store';
+import { useLayerStore } from '@/lib/stores/layer-store';
+import { useSelectionStore } from '@/lib/stores/selection-store';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { mmToCm } from '@/lib/utils/canvas';
 import { furnitureTemplates } from '@/data/furniture-templates';
@@ -15,6 +17,9 @@ export default function PropertiesPanel({ isMobile = false }: PropertiesPanelPro
   const { t, language } = useTranslation();
   const { furniture, selectedId: furnitureSelectedId, updateFurniture, deleteFurniture, duplicateFurniture, rotateFurniture } = useFurnitureStore();
   const { elements, selectedElementId, updateElement, deleteElement, showDimensionLabels, setShowDimensionLabels, rotateElement, duplicateElement } = useDrawingStore();
+  const { layers, getSortedLayers } = useLayerStore();
+  const { selectedItems, getSelectedCount, getSelectedFurnitureIds, getSelectedDrawingIds } = useSelectionStore();
+  const selectedCount = getSelectedCount();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Determine what's selected
@@ -261,9 +266,84 @@ export default function PropertiesPanel({ isMobile = false }: PropertiesPanelPro
         </button>
       </div>
 
-      {!selectedFurniture && !selectedDrawing ? (
+      {selectedCount === 0 ? (
         <div className="flex-1 flex items-center justify-center p-4 text-center text-muted-foreground">
           {t('noItemSelected')}
+        </div>
+      ) : selectedCount > 1 ? (
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div>
+            <h3 className="text-sm font-medium mb-2">{selectedCount}개 선택됨</h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              가구 {getSelectedFurnitureIds().length}개, 도형 {getSelectedDrawingIds().length}개
+            </p>
+          </div>
+
+          {/* Layer batch move */}
+          <div className="border-t border-border pt-4">
+            <h3 className="text-sm font-medium mb-2">레이어 일괄 이동</h3>
+            <select
+              onChange={(e) => {
+                const targetLayerId = e.target.value;
+                const { moveFurnitureToLayer } = useFurnitureStore.getState();
+                const { moveElementToLayer } = useDrawingStore.getState();
+
+                // Move all selected furniture
+                getSelectedFurnitureIds().forEach(id => {
+                  moveFurnitureToLayer(id, targetLayerId);
+                });
+
+                // Move all selected drawings
+                getSelectedDrawingIds().forEach(id => {
+                  moveElementToLayer(id, targetLayerId);
+                });
+              }}
+              className="w-full px-2 py-1 text-xs border border-border rounded bg-background"
+              defaultValue=""
+            >
+              <option value="" disabled>레이어 선택...</option>
+              {getSortedLayers().map(layer => (
+                <option key={layer.id} value={layer.id}>
+                  {layer.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Batch delete */}
+          <div className="border-t border-border pt-4">
+            <button
+              onClick={() => {
+                if (!window.confirm(`선택된 ${selectedCount}개의 항목을 삭제하시겠습니까?`)) return;
+
+                const { deleteFurniture } = useFurnitureStore.getState();
+                const { deleteElement } = useDrawingStore.getState();
+                const { clearSelection } = useSelectionStore.getState();
+
+                // Delete all selected furniture
+                getSelectedFurnitureIds().forEach(id => {
+                  deleteFurniture(id);
+                });
+
+                // Delete all selected drawings
+                getSelectedDrawingIds().forEach(id => {
+                  deleteElement(id);
+                });
+
+                clearSelection();
+              }}
+              className="w-full px-3 py-2 text-sm bg-red-500 text-white hover:bg-red-600 rounded transition-colors"
+            >
+              선택 항목 삭제
+            </button>
+          </div>
+
+          {/* Selection info */}
+          <div className="border-t border-border pt-4">
+            <p className="text-xs text-muted-foreground">
+              Ctrl을 누른 채로 클릭하여 선택을 추가하거나 제거할 수 있습니다.
+            </p>
+          </div>
         </div>
       ) : selectedFurniture ? (
         // Furniture properties
@@ -367,6 +447,69 @@ export default function PropertiesPanel({ isMobile = false }: PropertiesPanelPro
                   title={color}
                 />
               ))}
+            </div>
+          </div>
+
+          {/* Layer Controls */}
+          <div className="border-t border-border pt-4">
+            <h3 className="text-sm font-medium mb-2">레이어</h3>
+            <div className="space-y-2">
+              {/* Layer dropdown */}
+              <select
+                value={selectedFurniture.layerId}
+                onChange={(e) => {
+                  const { moveFurnitureToLayer } = useFurnitureStore.getState();
+                  moveFurnitureToLayer(selectedFurniture.id, e.target.value);
+                }}
+                className="w-full px-2 py-1 text-xs border border-border rounded bg-background"
+              >
+                {getSortedLayers().map(layer => (
+                  <option key={layer.id} value={layer.id}>
+                    {layer.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* Element order controls */}
+              <div className="text-xs text-muted-foreground mb-1">요소 순서</div>
+              <div className="grid grid-cols-2 gap-1">
+                <button
+                  onClick={() => {
+                    const { moveElementUp } = useFurnitureStore.getState();
+                    moveElementUp(selectedFurniture.id);
+                  }}
+                  className="px-2 py-1 text-xs border border-border rounded hover:bg-accent"
+                >
+                  ↑ 한칸 위
+                </button>
+                <button
+                  onClick={() => {
+                    const { moveElementDown } = useFurnitureStore.getState();
+                    moveElementDown(selectedFurniture.id);
+                  }}
+                  className="px-2 py-1 text-xs border border-border rounded hover:bg-accent"
+                >
+                  ↓ 한칸 아래
+                </button>
+                <button
+                  onClick={() => {
+                    const { moveElementToTop } = useFurnitureStore.getState();
+                    moveElementToTop(selectedFurniture.id);
+                  }}
+                  className="px-2 py-1 text-xs border border-border rounded hover:bg-accent"
+                >
+                  ⇈ 맨 위
+                </button>
+                <button
+                  onClick={() => {
+                    const { moveElementToBottom } = useFurnitureStore.getState();
+                    moveElementToBottom(selectedFurniture.id);
+                  }}
+                  className="px-2 py-1 text-xs border border-border rounded hover:bg-accent"
+                >
+                  ⇊ 맨 아래
+                </button>
+              </div>
             </div>
           </div>
 
@@ -622,6 +765,69 @@ export default function PropertiesPanel({ isMobile = false }: PropertiesPanelPro
               )}
             </div>
           )}
+
+          {/* Layer Controls for Drawing Elements */}
+          <div className="border-t border-border pt-4">
+            <h3 className="text-sm font-medium mb-2">레이어</h3>
+            <div className="space-y-2">
+              {/* Layer dropdown */}
+              <select
+                value={selectedDrawing.layerId}
+                onChange={(e) => {
+                  const { moveElementToLayer } = useDrawingStore.getState();
+                  moveElementToLayer(selectedDrawing.id, e.target.value);
+                }}
+                className="w-full px-2 py-1 text-xs border border-border rounded bg-background"
+              >
+                {getSortedLayers().map(layer => (
+                  <option key={layer.id} value={layer.id}>
+                    {layer.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* Element order controls */}
+              <div className="text-xs text-muted-foreground mb-1">요소 순서</div>
+              <div className="grid grid-cols-2 gap-1">
+                <button
+                  onClick={() => {
+                    const { moveElementUp } = useDrawingStore.getState();
+                    moveElementUp(selectedDrawing.id);
+                  }}
+                  className="px-2 py-1 text-xs border border-border rounded hover:bg-accent"
+                >
+                  ↑ 한칸 위
+                </button>
+                <button
+                  onClick={() => {
+                    const { moveElementDown } = useDrawingStore.getState();
+                    moveElementDown(selectedDrawing.id);
+                  }}
+                  className="px-2 py-1 text-xs border border-border rounded hover:bg-accent"
+                >
+                  ↓ 한칸 아래
+                </button>
+                <button
+                  onClick={() => {
+                    const { moveElementToTop } = useDrawingStore.getState();
+                    moveElementToTop(selectedDrawing.id);
+                  }}
+                  className="px-2 py-1 text-xs border border-border rounded hover:bg-accent"
+                >
+                  ⇈ 맨 위
+                </button>
+                <button
+                  onClick={() => {
+                    const { moveElementToBottom } = useDrawingStore.getState();
+                    moveElementToBottom(selectedDrawing.id);
+                  }}
+                  className="px-2 py-1 text-xs border border-border rounded hover:bg-accent"
+                >
+                  ⇊ 맨 아래
+                </button>
+              </div>
+            </div>
+          </div>
 
           <div className="border-t border-border pt-4">
             <h4 className="font-medium mb-2">표시 옵션</h4>

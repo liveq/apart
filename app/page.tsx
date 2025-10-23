@@ -4,9 +4,8 @@ import { useRef, useState, useEffect } from 'react';
 import FloorPlanCanvas from '@/components/canvas/FloorPlanCanvas';
 import FurniturePanel from '@/components/ui/FurniturePanel';
 import Toolbar from '@/components/ui/Toolbar';
-import PropertiesPanel from '@/components/ui/PropertiesPanel';
+import RightSidebar from '@/components/ui/RightSidebar';
 import MobileLayout from '@/components/layouts/MobileLayout';
-import { useKeyboardShortcuts } from '@/lib/hooks/useKeyboardShortcuts';
 import { useIsMobile } from '@/lib/hooks/useMediaQuery';
 
 export default function Home() {
@@ -16,8 +15,6 @@ export default function Home() {
   const [eraserMode, setEraserMode] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const isMobile = useIsMobile();
-
-  useKeyboardShortcuts(canvasRef);
 
   useEffect(() => {
     setIsMounted(true);
@@ -106,7 +103,7 @@ export default function Home() {
           />
         </main>
 
-        <PropertiesPanel />
+        <RightSidebar />
       </div>
     </div>
   );

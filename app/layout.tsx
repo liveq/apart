@@ -161,7 +161,10 @@ export default function RootLayout({
           {children}
         </ThemeProvider>
         <Toaster
-          position="bottom-right"
+          position="top-center"
+          containerStyle={{
+            top: '90px',
+          }}
           toastOptions={{
             duration: 5000,
             style: {

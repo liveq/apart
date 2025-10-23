@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useDrawingStore, SavedWork } from '@/lib/stores/drawing-store';
+import { useIsMobile } from '@/lib/hooks/useMediaQuery';
 
 interface CanvasSizeDialogProps {
   open: boolean;
@@ -12,6 +13,7 @@ interface CanvasSizeDialogProps {
 }
 
 export default function CanvasSizeDialog({ open, onClose, onConfirm, mode: initialMode = 'new', showNewTab = true }: CanvasSizeDialogProps) {
+  const isMobile = useIsMobile();
   const [mode, setMode] = useState<'new' | 'continue'>(initialMode);
   const [unit, setUnit] = useState<'mm' | 'cm' | 'm'>('mm');
   const [width, setWidth] = useState('11300');
@@ -144,124 +146,215 @@ export default function CanvasSizeDialog({ open, onClose, onConfirm, mode: initi
       <div
         style={{
           backgroundColor: 'white',
-          borderRadius: '12px',
-          padding: '32px',
-          minWidth: '500px',
-          maxWidth: '600px',
-          maxHeight: '80vh',
+          borderRadius: isMobile ? '10px' : '12px',
+          padding: isMobile ? '20px' : '32px',
+          minWidth: isMobile ? '85vw' : '500px',
+          maxWidth: isMobile ? '90vw' : '600px',
+          maxHeight: isMobile ? '85vh' : '80vh',
           overflow: 'auto',
           boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={{ marginBottom: '24px', fontSize: '24px', fontWeight: 'bold' }}>
-          {showNewTab ? '도면 생성' : '저장된 작업 불러오기'}
-        </h2>
-
-        {/* Mode selection - only show if showNewTab is true */}
-        {showNewTab && (
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-            <button
-              onClick={() => setMode('new')}
-              style={{
-                flex: 1,
-                padding: '12px',
-                border: mode === 'new' ? '2px solid #3b82f6' : '2px solid #e5e7eb',
-                borderRadius: '8px',
-                backgroundColor: mode === 'new' ? '#eff6ff' : 'white',
-                cursor: 'pointer',
-                fontWeight: mode === 'new' ? 'bold' : 'normal',
-                color: mode === 'new' ? '#3b82f6' : '#666',
-                fontSize: '16px',
-              }}
-            >
-              📄 새로 그리기
-            </button>
-            <button
-              onClick={() => setMode('continue')}
-              style={{
-                flex: 1,
-                padding: '12px',
-                border: mode === 'continue' ? '2px solid #3b82f6' : '2px solid #e5e7eb',
-                borderRadius: '8px',
-                backgroundColor: mode === 'continue' ? '#eff6ff' : 'white',
-                cursor: 'pointer',
-                fontWeight: mode === 'continue' ? 'bold' : 'normal',
-                color: mode === 'continue' ? '#3b82f6' : '#666',
-                fontSize: '16px',
-              }}
-            >
-              📂 이전 작업 이어하기
-            </button>
+        {/* Title and Mode selection */}
+        {showNewTab ? (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'row',
+            gap: isMobile ? '8px' : '16px',
+            alignItems: 'center',
+            marginBottom: isMobile ? '16px' : '24px',
+            flexWrap: isMobile ? 'nowrap' : 'wrap'
+          }}>
+            <h2 style={{
+              margin: 0,
+              fontSize: isMobile ? '14px' : '24px',
+              fontWeight: 'bold',
+              flexShrink: 0
+            }}>
+              도면생성
+            </h2>
+            <div style={{ display: 'flex', gap: isMobile ? '4px' : '12px', flex: 1 }}>
+              <button
+                onClick={() => setMode('new')}
+                style={{
+                  flex: 1,
+                  padding: isMobile ? '6px 4px' : '12px',
+                  border: mode === 'new' ? '2px solid #3b82f6' : '2px solid #e5e7eb',
+                  borderRadius: isMobile ? '6px' : '8px',
+                  backgroundColor: mode === 'new' ? '#eff6ff' : 'white',
+                  cursor: 'pointer',
+                  fontWeight: mode === 'new' ? 'bold' : 'normal',
+                  color: mode === 'new' ? '#3b82f6' : '#666',
+                  fontSize: isMobile ? '11px' : '16px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                📄 새로그리기
+              </button>
+              <button
+                onClick={() => setMode('continue')}
+                style={{
+                  flex: 1,
+                  padding: isMobile ? '6px 4px' : '12px',
+                  border: mode === 'continue' ? '2px solid #3b82f6' : '2px solid #e5e7eb',
+                  borderRadius: isMobile ? '6px' : '8px',
+                  backgroundColor: mode === 'continue' ? '#eff6ff' : 'white',
+                  cursor: 'pointer',
+                  fontWeight: mode === 'continue' ? 'bold' : 'normal',
+                  color: mode === 'continue' ? '#3b82f6' : '#666',
+                  fontSize: isMobile ? '11px' : '16px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                📂 이전작업
+              </button>
+            </div>
           </div>
+        ) : (
+          <h2 style={{ marginBottom: isMobile ? '16px' : '24px', fontSize: isMobile ? '18px' : '24px', fontWeight: 'bold' }}>
+            저장된 작업 불러오기
+          </h2>
         )}
 
         {mode === 'new' ? (
           <>
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
-                가로
-              </label>
-              <input
-                type="number"
-                value={width}
-                onChange={(e) => setWidth(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '2px solid #e5e7eb',
-                  borderRadius: '6px',
-                  fontSize: '16px',
-                }}
-                placeholder="11300"
-              />
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
-                세로
-              </label>
-              <input
-                type="number"
-                value={height}
-                onChange={(e) => setHeight(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '2px solid #e5e7eb',
-                  borderRadius: '6px',
-                  fontSize: '16px',
-                }}
-                placeholder="6900"
-              />
-            </div>
-
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
-                단위
-              </label>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                {(['mm', 'cm', 'm'] as const).map((u) => (
-                  <button
-                    key={u}
-                    onClick={() => setUnit(u)}
+            {/* Mobile: Compact 1-line layout, Desktop: 3-line layout */}
+            {isMobile ? (
+              <>
+                {/* Row 1: Width and Height inputs in one line */}
+                <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <label style={{ fontWeight: '500', fontSize: '13px', flexShrink: 0 }}>
+                    가로
+                  </label>
+                  <input
+                    type="number"
+                    value={width}
+                    onChange={(e) => setWidth(e.target.value)}
                     style={{
                       flex: 1,
-                      padding: '10px',
-                      border: unit === u ? '2px solid #3b82f6' : '2px solid #e5e7eb',
+                      padding: '6px 6px',
+                      border: '2px solid #e5e7eb',
                       borderRadius: '6px',
-                      backgroundColor: unit === u ? '#eff6ff' : 'white',
-                      cursor: 'pointer',
-                      fontWeight: unit === u ? 'bold' : 'normal',
-                      color: unit === u ? '#3b82f6' : '#666',
-                      transition: 'all 0.2s',
+                      fontSize: '13px',
                     }}
-                  >
-                    {u}
-                  </button>
-                ))}
-              </div>
-            </div>
+                    placeholder="11300"
+                  />
+                  <label style={{ fontWeight: '500', fontSize: '13px', flexShrink: 0 }}>
+                    세로
+                  </label>
+                  <input
+                    type="number"
+                    value={height}
+                    onChange={(e) => setHeight(e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: '6px 6px',
+                      border: '2px solid #e5e7eb',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                    }}
+                    placeholder="6900"
+                  />
+                </div>
+
+                {/* Row 2: Unit buttons */}
+                <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label style={{ fontWeight: '500', fontSize: '14px', flexShrink: 0, minWidth: '35px' }}>
+                    단위
+                  </label>
+                  <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
+                    {(['mm', 'cm', 'm'] as const).map((u) => (
+                      <button
+                        key={u}
+                        onClick={() => setUnit(u)}
+                        style={{
+                          flex: 1,
+                          padding: '6px 4px',
+                          border: unit === u ? '2px solid #3b82f6' : '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          backgroundColor: unit === u ? '#eff6ff' : 'white',
+                          cursor: 'pointer',
+                          fontWeight: unit === u ? 'bold' : 'normal',
+                          color: unit === u ? '#3b82f6' : '#666',
+                          fontSize: '13px',
+                        }}
+                      >
+                        {u}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Desktop: Original 3-line layout */}
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
+                    가로
+                  </label>
+                  <input
+                    type="number"
+                    value={width}
+                    onChange={(e) => setWidth(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '2px solid #e5e7eb',
+                      borderRadius: '6px',
+                      fontSize: '16px',
+                    }}
+                    placeholder="11300"
+                  />
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
+                    세로
+                  </label>
+                  <input
+                    type="number"
+                    value={height}
+                    onChange={(e) => setHeight(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '2px solid #e5e7eb',
+                      borderRadius: '6px',
+                      fontSize: '16px',
+                    }}
+                    placeholder="6900"
+                  />
+                </div>
+
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
+                    단위
+                  </label>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    {(['mm', 'cm', 'm'] as const).map((u) => (
+                      <button
+                        key={u}
+                        onClick={() => setUnit(u)}
+                        style={{
+                          flex: 1,
+                          padding: '10px',
+                          border: unit === u ? '2px solid #3b82f6' : '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          backgroundColor: unit === u ? '#eff6ff' : 'white',
+                          cursor: 'pointer',
+                          fontWeight: unit === u ? 'bold' : 'normal',
+                          color: unit === u ? '#3b82f6' : '#666',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        {u}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
 
             <div style={{ marginBottom: '24px', textAlign: 'center' }}>
               <div style={{ fontSize: '14px', color: '#999', marginBottom: '12px' }}>

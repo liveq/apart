@@ -9,6 +9,7 @@ import { RefObject, useState, useEffect, useRef } from 'react';
 import LayoutsDialog from './LayoutsDialog';
 import CanvasSizeDialog from './CanvasSizeDialog';
 import toast from 'react-hot-toast';
+import type { DrawingTool, EraserMode } from '@/lib/stores/drawing-store';
 
 interface ToolbarProps {
   canvasRef: RefObject<HTMLElement | null>;
@@ -24,7 +25,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
   const { t } = useTranslation();
   const { language: currentLang, setLanguage, calibratedScale, setCalibratedScale, setUploadedImageUrl, showSampleFloorPlan, setShowSampleFloorPlan, showCanvasSizeDialog, setShowCanvasSizeDialog } = useAppStore();
   const { snapEnabled, setSnapEnabled, snapSize, setSnapSize, undo, redo, clearAll } = useFurnitureStore();
-  const { setDrawingMode, setCanvasSize, clearAllElements, drawingMode, saveCurrentWork } = useDrawingStore();
+  const { setDrawingMode, setCanvasSize, clearAllElements, drawingMode, saveCurrentWork, currentTool, eraserMode: currentEraserMode, toolbarCollapsed, setToolbarCollapsed } = useDrawingStore();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showLoadWorkDialog, setShowLoadWorkDialog] = useState(false);
@@ -281,6 +282,49 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
     toast.success('캔버스가 생성되었습니다');
   };
 
+  // Get icon for current drawing tool
+  const getToolIcon = (tool: DrawingTool, eraserModeType: EraserMode): string => {
+    switch (tool) {
+      case 'select':
+        return '✋';
+      case 'line':
+        return '🖊';
+      case 'rectangle':
+        return '⬛';
+      case 'circle':
+        return '●';
+      case 'text':
+        return 'T';
+      case 'pen':
+        return '✏️';
+      case 'eraser':
+        return eraserModeType === 'universal' ? '✨' : eraserModeType === 'shape' ? '📐' : '🛋️';
+      default:
+        return '✋';
+    }
+  };
+
+  const getToolLabel = (tool: DrawingTool): string => {
+    switch (tool) {
+      case 'select':
+        return t('select');
+      case 'line':
+        return t('lineDrawing');
+      case 'rectangle':
+        return t('rectangle');
+      case 'circle':
+        return t('circleEllipse');
+      case 'text':
+        return t('text');
+      case 'pen':
+        return t('penFreehand');
+      case 'eraser':
+        return t('eraser');
+      default:
+        return t('select');
+    }
+  };
+
   return (
     <div className="h-16 bg-card border-b border-border flex items-center px-4 gap-4 overflow-x-auto">
       <div className="flex items-center gap-2">
@@ -308,7 +352,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={handleDirectDraw}
-          className="px-3 py-2 bg-purple-500 text-white hover:bg-purple-600 hover:ring-2 hover:ring-purple-300 hover:shadow-md rounded text-sm font-medium transition-all"
+          className="px-3 py-2 bg-purple-500 text-white hover:bg-purple-600 hover:ring-2 hover:ring-purple-300 hover:shadow-md rounded text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1"
           title={t('createFloorPlanTooltip')}
         >
           ✏️ {t('directDraw')}
@@ -316,7 +360,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={handleUploadClick}
-          className="px-3 py-2 bg-green-500 text-white hover:bg-green-600 hover:ring-2 hover:ring-green-300 hover:shadow-md rounded text-sm font-medium transition-all"
+          className="px-3 py-2 bg-green-500 text-white hover:bg-green-600 hover:ring-2 hover:ring-green-300 hover:shadow-md rounded text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1"
           title={t('uploadFloorPlanTooltip')}
         >
           📁 {t('uploadButton')}
@@ -324,7 +368,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={handleLoadSample}
-          className="px-3 py-2 bg-blue-500 text-white hover:bg-blue-600 hover:ring-2 hover:ring-blue-300 hover:shadow-md rounded text-sm font-medium transition-all"
+          className="px-3 py-2 bg-blue-500 text-white hover:bg-blue-600 hover:ring-2 hover:ring-blue-300 hover:shadow-md rounded text-sm font-medium transition-all whitespace-nowrap"
           title={t('sampleFloorPlanTooltip')}
         >
           {t('sample')}
@@ -332,7 +376,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={handleReset}
-          className="px-3 py-2 bg-gray-500 text-white hover:bg-gray-600 hover:ring-2 hover:ring-gray-300 hover:shadow-md rounded text-sm font-medium transition-all"
+          className="px-3 py-2 bg-gray-500 text-white hover:bg-gray-600 hover:ring-2 hover:ring-gray-300 hover:shadow-md rounded text-sm font-medium transition-all whitespace-nowrap"
           title={t('resetAllTooltip')}
         >
           {t('reset')}
@@ -343,7 +387,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
         <button
           onClick={onToggleCalibration}
           className={
-            'px-3 py-2 rounded text-sm font-medium transition-all hover:shadow-md ' +
+            'px-3 py-2 rounded text-sm font-medium transition-all hover:shadow-md whitespace-nowrap flex items-center gap-1 ' +
             (calibrationMode
               ? 'bg-orange-500 text-white hover:bg-orange-600 hover:ring-2 hover:ring-orange-300 shadow-lg'
               : calibratedScale
@@ -368,18 +412,32 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
                 },
               });
             }}
-            className="px-2 py-2 bg-red-500 text-white hover:bg-red-600 hover:ring-2 hover:ring-red-300 hover:shadow-md rounded text-xs transition-all"
+            className="px-2 py-2 bg-red-500 text-white hover:bg-red-600 hover:ring-2 hover:ring-red-300 hover:shadow-md rounded text-xs transition-all whitespace-nowrap"
             title={t('resetCalibrationTooltip')}
           >
             {t('resetCalibration')}
           </button>
         )}
 
+        {/* Current Drawing Tool Indicator */}
+        <button
+          onClick={() => {
+            if (toolbarCollapsed) {
+              setToolbarCollapsed(false);
+            }
+          }}
+          className="px-3 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1"
+          title={`현재 도구: ${getToolLabel(currentTool)}`}
+        >
+          {getToolIcon(currentTool, currentEraserMode)}
+          <span className="hidden md:inline">{getToolLabel(currentTool)}</span>
+        </button>
+
         <div className="w-px h-6 bg-border mx-2" />
 
         <button
           onClick={undo}
-          className="px-3 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all"
+          className="px-3 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all whitespace-nowrap"
           title={t('undo')}
         >
           ↶
@@ -387,7 +445,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={redo}
-          className="px-3 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all"
+          className="px-3 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all whitespace-nowrap"
           title={t('redo')}
         >
           ↷
@@ -397,7 +455,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={() => setSnapEnabled(!snapEnabled)}
-          className={"px-3 py-2 rounded-l text-sm transition-all hover:shadow-md " + (
+          className={"px-3 py-2 rounded-l text-sm transition-all hover:shadow-md whitespace-nowrap " + (
             snapEnabled
               ? 'bg-primary text-primary-foreground hover:ring-2 hover:ring-primary/30'
               : 'bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30'
@@ -410,7 +468,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
         <select
           value={snapSize}
           onChange={(e) => setSnapSize(Number(e.target.value))}
-          className="px-2 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded-r text-sm border-l border-border transition-all cursor-pointer"
+          className="px-2 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded-r text-sm border-l border-border transition-all cursor-pointer whitespace-nowrap"
           title={t('gridSize')}
         >
           <option value={10}>1cm</option>
@@ -422,7 +480,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={handleMeasurementClick}
-          className={"px-3 py-2 rounded text-sm font-medium transition-all hover:shadow-md " + (
+          className={"px-3 py-2 rounded text-sm font-medium transition-all hover:shadow-md whitespace-nowrap " + (
             measurementMode
               ? 'bg-red-500 text-white hover:bg-red-600 hover:ring-2 hover:ring-red-300'
               : 'bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30'
@@ -434,7 +492,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={onToggleEraser}
-          className={"px-3 py-2 rounded text-sm font-medium transition-all hover:shadow-md " + (
+          className={"px-3 py-2 rounded text-sm font-medium transition-all hover:shadow-md whitespace-nowrap " + (
             eraserMode
               ? 'bg-red-500 text-white hover:bg-red-600 hover:ring-2 hover:ring-red-300'
               : 'bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30'
@@ -448,7 +506,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={handleClearAll}
-          className="px-3 py-2 bg-gray-500 text-white hover:bg-gray-600 hover:ring-2 hover:ring-gray-300 hover:shadow-md rounded text-sm transition-all"
+          className="px-3 py-2 bg-gray-500 text-white hover:bg-gray-600 hover:ring-2 hover:ring-gray-300 hover:shadow-md rounded text-sm transition-all whitespace-nowrap"
           title={t('clearAllFurnitureTooltip')}
         >
           {t('clearAllFurniture')}
@@ -459,7 +517,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
             // Always show save dialog regardless of mode
             setShowSaveDialog(true);
           }}
-          className="px-3 py-2 bg-primary text-primary-foreground hover:opacity-90 hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all"
+          className="px-3 py-2 bg-primary text-primary-foreground hover:opacity-90 hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all whitespace-nowrap flex items-center gap-1"
           title={t('saveTooltip')}
         >
           💾 {t('saveButton')}
@@ -467,7 +525,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={handleLoadClick}
-          className="px-3 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all"
+          className="px-3 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all whitespace-nowrap flex items-center gap-1"
           title={t('loadTooltip')}
         >
           📂 {t('loadButton')}
@@ -477,7 +535,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={handleExport}
-          className="px-3 py-2 bg-primary text-primary-foreground hover:opacity-90 hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all"
+          className="px-3 py-2 bg-primary text-primary-foreground hover:opacity-90 hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all whitespace-nowrap"
           title={t('exportJPEG')}
         >
           {t('export')}
@@ -487,7 +545,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={toggleLanguage}
-          className="px-3 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all"
+          className="px-3 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all whitespace-nowrap"
           title={t('language')}
         >
           {currentLang === 'ko' ? 'EN' : 'KO'}
@@ -495,7 +553,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={toggleTheme}
-          className="px-3 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all"
+          className="px-3 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all whitespace-nowrap"
           title={t('theme')}
         >
           {theme === 'light' ? '🌙' : '☀️'}

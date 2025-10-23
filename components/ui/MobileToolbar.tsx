@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, RefObject, useRef } from 'react';
+import { useState, RefObject, useRef, useEffect } from 'react';
 import { useAppStore } from '@/lib/stores/app-store';
 import { useFurnitureStore } from '@/lib/stores/furniture-store';
+import { useDrawingStore } from '@/lib/stores/drawing-store';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { exportAsJPEG } from '@/lib/utils/export';
 import BottomSheet from './BottomSheet';
+import CanvasSizeDialog from './CanvasSizeDialog';
+import LayoutsDialog from './LayoutsDialog';
 import toast from 'react-hot-toast';
 
 interface MobileToolbarProps {
@@ -28,7 +31,15 @@ export default function MobileToolbar({
   onToggleEraser,
 }: MobileToolbarProps) {
   const { t } = useTranslation();
-  const { language: currentLang, setLanguage, setCalibratedScale, setUploadedImageUrl } = useAppStore();
+  const {
+    language: currentLang,
+    setLanguage,
+    setCalibratedScale,
+    setUploadedImageUrl,
+    setShowSampleFloorPlan,
+    showCanvasSizeDialog,
+    setShowCanvasSizeDialog
+  } = useAppStore();
   const {
     snapEnabled,
     setSnapEnabled,
@@ -39,10 +50,31 @@ export default function MobileToolbar({
     clearAll,
     clearMeasurements
   } = useFurnitureStore();
+  const {
+    toolbarCollapsed,
+    setToolbarCollapsed,
+    setCanvasSize,
+    setDrawingMode,
+    clearAllElements
+  } = useDrawingStore();
 
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [showMenuSheet, setShowMenuSheet] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showLoadDialog, setShowLoadDialog] = useState(false);
+  const [isNarrowScreen, setIsNarrowScreen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Screen width detection for responsive positioning
+  useEffect(() => {
+    const handleResize = () => {
+      setIsNarrowScreen(window.innerWidth <= 580);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
@@ -66,7 +98,8 @@ export default function MobileToolbar({
 
   const handleClearAll = () => {
     if (confirm(t('confirmClearAll'))) {
-      clearAll();
+      clearAll(); // Clear furniture
+      clearAllElements(); // Clear drawing shapes
       setShowMenuSheet(false);
     }
   };
@@ -93,6 +126,30 @@ export default function MobileToolbar({
     }
   };
 
+  const handleDirectDraw = () => {
+    if (eraserMode && onToggleEraser) {
+      onToggleEraser();
+    }
+    if (calibrationMode && onToggleCalibration) {
+      onToggleCalibration();
+    }
+    setShowCanvasSizeDialog(true);
+  };
+
+  const handleCanvasSizeConfirm = (width: number, height: number, unit: 'mm' | 'cm' | 'm') => {
+    setUploadedImageUrl(null);
+    setShowSampleFloorPlan(false);
+    setCanvasSize(width, height, unit);
+    setDrawingMode(true);
+    setCalibratedScale(null);
+    setShowCanvasSizeDialog(false);
+    toast.success(t('canvasCreated') || '캔버스가 생성되었습니다');
+  };
+
+  const handleLoadClick = () => {
+    setShowLoadDialog(true);
+  };
+
   return (
     <>
       <input
@@ -103,12 +160,53 @@ export default function MobileToolbar({
         className="hidden"
       />
 
+      {/* Drawing Toolbar Expand Button (floating only on narrow screens) */}
+      {toolbarCollapsed && isNarrowScreen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '55px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            pointerEvents: 'auto',
+          }}
+        >
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (calibrationMode && onToggleCalibration) {
+                onToggleCalibration();
+              }
+              setToolbarCollapsed(false);
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (calibrationMode && onToggleCalibration) {
+                onToggleCalibration();
+              }
+              setToolbarCollapsed(false);
+            }}
+            className="px-3 py-1.5 bg-purple-500 text-white hover:bg-purple-600 rounded text-xs font-medium shadow-lg"
+            style={{
+              cursor: 'pointer',
+              touchAction: 'manipulation',
+            }}
+            title="그리기 도구 펼치기"
+          >
+            ✏️ 그리기 도구
+          </button>
+        </div>
+      )}
+
       <div className="h-14 bg-card border-b border-border flex items-center px-1.5 gap-1 shrink-0">
         {/* Hamburger Menu */}
         <button
           onClick={() => setShowMenuSheet(true)}
           className="p-1.5 hover:bg-accent rounded flex-shrink-0"
-          title="Menu"
+          title={t('menu') || 'Menu'}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="3" y1="6" x2="21" y2="6" />
@@ -117,10 +215,33 @@ export default function MobileToolbar({
           </svg>
         </button>
 
+        {/* Export JPEG Button */}
+        <button
+          onClick={handleExport}
+          className="px-2 py-1.5 bg-primary text-primary-foreground rounded text-sm flex-shrink-0"
+          title={t('exportJPEG')}
+        >
+          📥
+        </button>
+
+        {/* Create Floor Plan Button */}
+        <button
+          onClick={handleDirectDraw}
+          className="px-2 py-1.5 bg-purple-500 text-white hover:bg-purple-600 rounded text-sm flex-shrink-0"
+          title={t('createFloorPlanTooltip') || '도면 생성'}
+        >
+          ✏️
+        </button>
+
         {/* Upload Button */}
         <button
-          onClick={() => fileInputRef.current?.click()}
-          className="px-2 py-1.5 bg-blue-500 text-white hover:bg-blue-600 rounded text-sm flex-shrink-0"
+          onClick={() => {
+            if (calibrationMode && onToggleCalibration) {
+              onToggleCalibration();
+            }
+            fileInputRef.current?.click();
+          }}
+          className="px-2 py-1.5 bg-green-500 text-white hover:bg-green-600 rounded text-sm flex-shrink-0"
           title={t('uploadFloorPlanTooltip')}
         >
           📤
@@ -165,20 +286,59 @@ export default function MobileToolbar({
           🗑️
         </button>
 
-        <div className="flex-1" />
-
-        {/* Save Button */}
+        {/* Clear All Button */}
         <button
-          onClick={handleExport}
-          className="px-2 py-1.5 bg-primary text-primary-foreground rounded text-sm flex-shrink-0"
-          title={t('exportJPEG')}
+          onClick={handleClearAll}
+          className="px-2 py-1.5 bg-red-500 text-white hover:bg-red-600 rounded text-sm flex-shrink-0"
+          title={t('clearAllFurnitureTooltip') || '가구 전체 삭제'}
+        >
+          💣
+        </button>
+
+        {/* Save Work Button */}
+        <button
+          onClick={() => setShowSaveDialog(true)}
+          className="px-2 py-1.5 bg-primary text-primary-foreground hover:opacity-90 rounded text-sm flex-shrink-0"
+          title={t('saveTooltip') || '작업 저장'}
         >
           💾
         </button>
 
+        {/* Load Work Button */}
+        <button
+          onClick={handleLoadClick}
+          className="px-2 py-1.5 bg-secondary hover:bg-accent rounded text-sm flex-shrink-0"
+          title={t('loadTooltip') || '작업 불러오기'}
+        >
+          📂
+        </button>
+
+        {/* Drawing Toolbar Expand Button (in header on wide screens) */}
+        {toolbarCollapsed && !isNarrowScreen && (
+          <button
+            onClick={() => {
+              if (calibrationMode && onToggleCalibration) {
+                onToggleCalibration();
+              }
+              setToolbarCollapsed(false);
+            }}
+            className="px-3 py-1.5 bg-purple-500 text-white hover:bg-purple-600 rounded text-xs font-medium flex-shrink-0"
+            title="그리기 도구 펼치기"
+          >
+            ✏️ 그리기 도구
+          </button>
+        )}
+
+        <div className="flex-1" />
+
         {/* Language Toggle */}
         <button
-          onClick={toggleLanguage}
+          onClick={() => {
+            if (calibrationMode && onToggleCalibration) {
+              onToggleCalibration();
+            }
+            toggleLanguage();
+          }}
           className="px-2 py-1.5 bg-secondary hover:bg-accent rounded text-xs font-medium flex-shrink-0"
           title={t('language')}
         >
@@ -187,7 +347,12 @@ export default function MobileToolbar({
 
         {/* Theme Toggle */}
         <button
-          onClick={toggleTheme}
+          onClick={() => {
+            if (calibrationMode && onToggleCalibration) {
+              onToggleCalibration();
+            }
+            toggleTheme();
+          }}
           className="p-1.5 bg-secondary hover:bg-accent rounded text-sm flex-shrink-0"
           title={t('theme')}
         >
@@ -286,6 +451,29 @@ export default function MobileToolbar({
           </button>
         </div>
       </BottomSheet>
+
+      {/* Canvas Size Dialog for Creating Floor Plan */}
+      <CanvasSizeDialog
+        open={showCanvasSizeDialog}
+        onClose={() => setShowCanvasSizeDialog(false)}
+        onConfirm={handleCanvasSizeConfirm}
+      />
+
+      {/* Save Work Dialog */}
+      <LayoutsDialog
+        key={showSaveDialog ? 'save' : 'save-closed'}
+        open={showSaveDialog}
+        onClose={() => setShowSaveDialog(false)}
+        mode="save"
+      />
+
+      {/* Load Work Dialog */}
+      <LayoutsDialog
+        key={showLoadDialog ? 'load' : 'load-closed'}
+        open={showLoadDialog}
+        onClose={() => setShowLoadDialog(false)}
+        mode="load"
+      />
     </>
   );
 }

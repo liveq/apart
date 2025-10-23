@@ -272,6 +272,68 @@ export default function HelpDialog({ open, onClose }: HelpDialogProps) {
               </div>
             </div>
           </section>
+
+          {/* 레이어 관리 */}
+          <section>
+            <h3 className="text-lg font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">
+              레이어 관리
+            </h3>
+            <div className="space-y-3 text-sm text-gray-700">
+              <div>
+                <p className="font-semibold text-gray-900">레이어란?</p>
+                <p className="mt-1">
+                  포토샵의 레이어처럼 가구와 도형을 여러 층으로 나누어 관리할 수 있습니다.<br/>
+                  각 레이어는 독립적으로 표시/숨김, 잠금, 순서 변경이 가능합니다.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-semibold text-gray-900">레이어 생성 및 선택</p>
+                <p className="mt-1">
+                  • 우측 레이어 패널 상단의 '+' 버튼으로 새 레이어를 추가합니다.<br/>
+                  • 레이어를 클릭하면 활성 레이어로 전환됩니다.<br/>
+                  • 새로 추가되는 가구/도형은 현재 활성 레이어에 배치됩니다.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-semibold text-gray-900">레이어 기본 기능</p>
+                <p className="mt-1">
+                  • 눈 아이콘: 레이어 표시/숨김 토글<br/>
+                  • 자물쇠 아이콘: 레이어 잠금 (편집 불가)<br/>
+                  • 화살표 버튼: 레이어 순서 변경 (위/아래)<br/>
+                  • 불투명도 슬라이더: 레이어 전체의 투명도 조절 (0-100%)
+                </p>
+              </div>
+
+              <div>
+                <p className="font-semibold text-gray-900">레이어 고급 기능 (우클릭 메뉴)</p>
+                <p className="mt-1">
+                  • Duplicate Layer: 레이어와 내부의 모든 요소를 복제합니다.<br/>
+                  • Merge Down: 현재 레이어를 아래 레이어와 병합합니다.<br/>
+                  • Change Color: 레이어에 색상 태그를 지정합니다.<br/>
+                  • Rename: 레이어 이름을 변경합니다.<br/>
+                  • Delete Layer: 레이어와 내부 요소를 모두 삭제합니다.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-semibold text-gray-900">요소 이동 및 순서 조절</p>
+                <p className="mt-1">
+                  • 정보 패널에서 요소의 레이어를 변경할 수 있습니다.<br/>
+                  • 레이어 내에서 요소의 순서를 조절할 수 있습니다 (맨 위/한칸 위/한칸 아래/맨 아래).<br/>
+                  • Ctrl+클릭으로 여러 요소를 선택하여 한번에 레이어를 이동할 수 있습니다.
+                </p>
+              </div>
+
+              <div className="bg-blue-50 border-l-4 border-blue-400 p-3 mt-3">
+                <p className="text-xs text-blue-900">
+                  <strong>팁:</strong> 복잡한 도면 작업 시 용도별로 레이어를 분리하면 편리합니다.<br/>
+                  예: "벽/구조" 레이어, "가구" 레이어, "치수선" 레이어 등
+                </p>
+              </div>
+            </div>
+          </section>
         </div>
 
         {/* Footer */}

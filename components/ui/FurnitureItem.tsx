@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect } from 'react';
 import { useFurnitureStore, FurnitureItem as FurnitureItemType } from '@/lib/stores/furniture-store';
+import { useSelectionStore } from '@/lib/stores/selection-store';
 import { snapCoordinates } from '@/lib/utils/snap';
 import { mmToPixels } from '@/lib/utils/canvas';
 import { useTranslation } from '@/lib/hooks/useTranslation';
@@ -14,6 +15,7 @@ interface FurnitureItemProps {
   canvasPanY?: number;
   eraserMode?: boolean;
   drawingEraserActive?: boolean;
+  layerOpacity?: number;
 }
 
 // Calculate cursor style based on handle type and rotation
@@ -49,9 +51,10 @@ const getResizeCursor = (handle: string, rotation: number): string => {
   return 'move';
 };
 
-export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX = 0, canvasPanY = 0, eraserMode = false, drawingEraserActive = false }: FurnitureItemProps) {
+export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX = 0, canvasPanY = 0, eraserMode = false, drawingEraserActive = false, layerOpacity = 100 }: FurnitureItemProps) {
   const { language } = useTranslation();
-  const { selectedId, setSelectedId, updateFurniture, snapEnabled, snapSize, deleteFurniture } = useFurnitureStore();
+  const { updateFurniture, snapEnabled, snapSize, deleteFurniture } = useFurnitureStore();
+  const { isSelected: isItemSelected, toggleSelection } = useSelectionStore();
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
@@ -61,7 +64,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, depth: 0, itemX: 0, itemY: 0 });
   const itemRef = useRef<HTMLDivElement>(null);
 
-  const isSelected = selectedId === item.id;
+  const isSelected = isItemSelected(item.id, 'furniture');
   const showDeleteButton = (isSelected || isHovered || isDeleteButtonHovered) && !eraserMode && !drawingEraserActive;
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -70,7 +73,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
     e.preventDefault();
     e.stopPropagation();
 
-    setSelectedId(item.id);
+    toggleSelection(item.id, 'furniture', e.ctrlKey || e.metaKey);
     setIsDragging(true);
 
     const canvas = itemRef.current?.parentElement;
@@ -93,7 +96,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
   const handleTouchStart = (e: React.TouchEvent) => {
     e.stopPropagation();
 
-    setSelectedId(item.id);
+    toggleSelection(item.id, 'furniture', false); // Touch doesn't support Ctrl
     setIsDragging(true);
 
     const canvas = itemRef.current?.parentElement;
@@ -220,7 +223,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
     e.preventDefault();
     e.stopPropagation();
 
-    setSelectedId(item.id);
+    toggleSelection(item.id, 'furniture', e.ctrlKey || e.metaKey);
     setIsResizing(true);
     setResizeHandle(handle);
 
@@ -412,7 +415,7 @@ export default function FurnitureItem({ item, scale, canvasZoom = 1, canvasPanX 
           cursor: isResizing ? 'default' : (isDragging ? 'grabbing' : 'grab'),
           transform: `rotate(${item.rotation}deg)`,
           transformOrigin: 'center',
-          opacity: 0.8,
+          opacity: (layerOpacity / 100) * 0.8,
           transition: (isDragging || isResizing) ? 'none' : 'all 0.1s ease',
           boxShadow: isSelected
             ? '0 4px 12px rgba(59, 130, 246, 0.3)'

@@ -4,12 +4,16 @@ import { useRef, useState, useEffect } from 'react';
 import FloorPlanCanvas from '@/components/canvas/FloorPlanCanvas';
 import FurniturePanel from '@/components/ui/FurniturePanel';
 import PropertiesPanel from '@/components/ui/PropertiesPanel';
+import LayerPanel from '@/components/ui/LayerPanel';
 import MobileToolbar from '@/components/ui/MobileToolbar';
 import BottomSheet from '@/components/ui/BottomSheet';
 import { useFurnitureStore } from '@/lib/stores/furniture-store';
 import { useAppStore } from '@/lib/stores/app-store';
+import { useDrawingStore } from '@/lib/stores/drawing-store';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import toast from 'react-hot-toast';
+
+type TabType = 'furniture' | 'properties' | 'layers';
 
 export default function MobileLayout() {
   const { t } = useTranslation();
@@ -17,10 +21,11 @@ export default function MobileLayout() {
   const [measurementMode, setMeasurementMode] = useState(false);
   const [calibrationMode, setCalibrationMode] = useState(false);
   const [eraserMode, setEraserMode] = useState(false);
-  const [showFurnitureSheet, setShowFurnitureSheet] = useState(false);
-  const [showPropertiesSheet, setShowPropertiesSheet] = useState(false);
+  const [showBottomSheet, setShowBottomSheet] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('furniture');
   const { selectedId } = useFurnitureStore();
   const { calibratedScale } = useAppStore();
+  const { currentTool, selectedElementId } = useDrawingStore();
 
   // ESC key to cancel calibration mode
   useEffect(() => {
@@ -83,12 +88,29 @@ export default function MobileLayout() {
     setCalibrationMode(false);
   };
 
-  // Close properties sheet when furniture is deselected
+  // Auto-switch to properties tab when furniture or drawing element is selected
   useEffect(() => {
-    if (!selectedId) {
-      setShowPropertiesSheet(false);
+    const hasSelection = selectedId || selectedElementId;
+    if (hasSelection && showBottomSheet) {
+      setActiveTab('properties');
+    } else if (!hasSelection && activeTab === 'properties') {
+      setActiveTab('furniture');
     }
-  }, [selectedId]);
+  }, [selectedId, selectedElementId, showBottomSheet, activeTab]);
+
+  // Turn off calibration mode when drawing tool is selected
+  useEffect(() => {
+    if (currentTool !== 'select' && calibrationMode) {
+      setCalibrationMode(false);
+    }
+  }, [currentTool, calibrationMode]);
+
+  // Turn off calibration mode when bottom sheet is opened
+  useEffect(() => {
+    if (showBottomSheet && calibrationMode) {
+      setCalibrationMode(false);
+    }
+  }, [showBottomSheet, calibrationMode]);
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-background">
@@ -114,10 +136,13 @@ export default function MobileLayout() {
 
         {/* Bottom Floating Action Buttons */}
         <div className="fixed bottom-6 left-0 right-0 flex justify-between items-center gap-3 px-6 z-30">
-          {/* Properties button - left */}
-          {selectedId && (
+          {/* Properties button - left (when furniture or drawing element is selected) */}
+          {(selectedId || selectedElementId) && (
             <button
-              onClick={() => setShowPropertiesSheet(true)}
+              onClick={() => {
+                setActiveTab('properties');
+                setShowBottomSheet(true);
+              }}
               className="px-4 py-2 bg-card border-2 border-primary rounded-full shadow-lg text-sm font-bold hover:bg-accent transition-colors"
               title={t('selectedItem')}
             >
@@ -125,11 +150,28 @@ export default function MobileLayout() {
             </button>
           )}
 
+          {/* Layers button - left (when nothing is selected) */}
+          {!selectedId && !selectedElementId && (
+            <button
+              onClick={() => {
+                setActiveTab('layers');
+                setShowBottomSheet(true);
+              }}
+              className="px-4 py-2 bg-card border-2 border-border rounded-full shadow-lg text-sm font-bold hover:bg-accent transition-colors"
+              title="레이어"
+            >
+              📋 레이어
+            </button>
+          )}
+
           <div className="flex-1" />
 
           {/* Add Furniture button - right */}
           <button
-            onClick={() => setShowFurnitureSheet(true)}
+            onClick={() => {
+              setActiveTab('furniture');
+              setShowBottomSheet(true);
+            }}
             className="w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-lg flex items-center justify-center text-2xl font-bold hover:opacity-90 transition-opacity"
             title={t('addFurniture')}
           >
@@ -138,26 +180,65 @@ export default function MobileLayout() {
         </div>
       </main>
 
-      {/* Furniture List Bottom Sheet */}
+      {/* Unified Tabbed Bottom Sheet */}
       <BottomSheet
-        isOpen={showFurnitureSheet}
-        onClose={() => setShowFurnitureSheet(false)}
-        snapPoints={[70, 90]}
+        isOpen={showBottomSheet}
+        onClose={() => setShowBottomSheet(false)}
+        snapPoints={activeTab === 'properties' ? [50, 80] : [70, 90]}
       >
-        <div className="h-full">
-          <FurniturePanel isMobile={true} onClose={() => setShowFurnitureSheet(false)} />
-        </div>
-      </BottomSheet>
+        <div className="h-full flex flex-col">
+          {/* Tab Bar */}
+          <div className="flex border-b border-gray-200 bg-card sticky top-0 z-10">
+            <button
+              onClick={() => setActiveTab('furniture')}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'furniture'
+                  ? 'text-primary border-b-2 border-primary bg-primary/5'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              }`}
+            >
+              🪑 가구
+            </button>
+            <button
+              onClick={() => setActiveTab('properties')}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'properties'
+                  ? 'text-primary border-b-2 border-primary bg-primary/5'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              }`}
+            >
+              ⚙️ 정보
+            </button>
+            <button
+              onClick={() => setActiveTab('layers')}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'layers'
+                  ? 'text-primary border-b-2 border-primary bg-primary/5'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              }`}
+            >
+              📋 레이어
+            </button>
+          </div>
 
-      {/* Properties Panel Bottom Sheet */}
-      <BottomSheet
-        isOpen={showPropertiesSheet}
-        onClose={() => setShowPropertiesSheet(false)}
-        title={t('selectedItem')}
-        snapPoints={[50, 80]}
-      >
-        <div className="h-full">
-          <PropertiesPanel isMobile={true} />
+          {/* Tab Content */}
+          <div className="flex-1 overflow-hidden">
+            {activeTab === 'furniture' && (
+              <div className="h-full">
+                <FurniturePanel isMobile={true} onClose={() => setShowBottomSheet(false)} />
+              </div>
+            )}
+            {activeTab === 'properties' && (
+              <div className="h-full overflow-auto">
+                <PropertiesPanel isMobile={true} />
+              </div>
+            )}
+            {activeTab === 'layers' && (
+              <div className="h-full overflow-auto">
+                <LayerPanel isMobile={true} />
+              </div>
+            )}
+          </div>
         </div>
       </BottomSheet>
     </div>
