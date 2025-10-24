@@ -129,6 +129,8 @@ export default function CanvasSizeDialog({ open, onClose, onConfirm, mode: initi
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       style={{
         position: 'fixed',
         top: 0,
@@ -530,6 +532,8 @@ export default function CanvasSizeDialog({ open, onClose, onConfirm, mode: initi
         {/* Custom Delete Confirmation Dialog */}
         {deleteConfirmId && (
           <div
+            role="dialog"
+            aria-modal="true"
             style={{
               position: 'fixed',
               top: 0,

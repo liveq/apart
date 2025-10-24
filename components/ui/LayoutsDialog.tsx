@@ -143,7 +143,7 @@ export default function LayoutsDialog({ open, onClose, mode = 'save' }: LayoutsD
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
       <div
         className="bg-card border border-border rounded-lg shadow-lg p-6 w-full max-w-2xl m-4 max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -324,7 +324,7 @@ export default function LayoutsDialog({ open, onClose, mode = 'save' }: LayoutsD
 
         {/* Custom Delete Confirmation Dialog */}
         {deleteConfirmId && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setDeleteConfirmId(null)}>
+          <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setDeleteConfirmId(null)}>
             <div
               className="bg-card border border-border rounded-lg shadow-xl p-6 max-w-md m-4"
               onClick={(e) => e.stopPropagation()}

@@ -22,6 +22,8 @@ export default function HelpDialog({ open, onClose }: HelpDialogProps) {
 
   return createPortal(
     <div
+      role="dialog"
+      aria-modal="true"
       className="fixed inset-0 bg-black/50 flex items-start justify-center pt-4 sm:pt-8 md:pt-16 overflow-y-auto"
       style={{ zIndex: 50000 }}
       onClick={onClose}

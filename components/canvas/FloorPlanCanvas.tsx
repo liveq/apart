@@ -494,12 +494,20 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
 
     const handleTouchStartCapture = (e: TouchEvent) => {
       touchStartTimeRef.current = Date.now();
-      const targetTag = (e.target as HTMLElement).tagName?.toLowerCase();
+      const target = e.target as HTMLElement;
+
+      // Don't handle touches inside modals/dialogs
+      const isInsideModal = target.closest('[role="dialog"]') ||
+                           target.closest('[data-modal="true"]');
+
+      if (isInsideModal) return;
+
+      const targetTag = target.tagName?.toLowerCase();
 
       // Don't set lastPanPoint if touching SVG elements (furniture/drawing shapes)
       // This allows element dragging instead of background panning
       const isSVGElement = ['rect', 'circle', 'ellipse', 'line', 'path', 'text', 'polyline', 'polygon'].includes(targetTag);
-      const isFurnitureDiv = (e.target as HTMLElement).classList?.contains('furniture-item');
+      const isFurnitureDiv = target.classList?.contains('furniture-item');
 
       if (e.touches.length === 1 && !isSVGElement && !isFurnitureDiv) {
         lastPanPointRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };

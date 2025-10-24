@@ -124,6 +124,8 @@ export default function BottomSheet({
 
       {/* Bottom Sheet */}
       <div
+        role="dialog"
+        aria-modal="true"
         className="fixed bottom-0 left-0 right-0 bg-card rounded-t-3xl shadow-2xl z-50 transition-transform"
         style={{
           height: `${height}vh`,

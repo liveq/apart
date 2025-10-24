@@ -100,7 +100,7 @@ export default function CustomFurnitureDialog({ open, onClose }: CustomFurniture
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={handleCancel}>
+    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={handleCancel}>
       <div
         className="bg-card border border-border rounded-lg shadow-lg p-6 w-full max-w-md m-4"
         onClick={(e) => e.stopPropagation()}
