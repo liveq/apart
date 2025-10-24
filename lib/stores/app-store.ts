@@ -258,6 +258,15 @@ export const useAppStore = create<AppState>()(
           savedLayouts: state.savedLayouts,
           currentLayoutId: state.currentLayoutId,
         }),
+        onRehydrateStorage: () => (state, error) => {
+          if (error) {
+            console.error('Failed to rehydrate app-storage:', error);
+            // Clear corrupted data
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('app-storage');
+            }
+          }
+        },
       }
     ),
     { name: 'app-store' }
