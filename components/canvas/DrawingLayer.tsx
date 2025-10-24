@@ -81,7 +81,7 @@ export default function DrawingLayer({
     saveCurrentWork,
   } = useDrawingStore();
 
-  const { isSelected: isItemSelected, toggleSelection } = useSelectionStore();
+  const { isSelected: isItemSelected, toggleSelection, selectedItems } = useSelectionStore();
 
   // mm ↔ px 변환 헬퍼 함수
   const effectiveScale = calibratedScale || scale; // px/mm 비율
@@ -98,6 +98,7 @@ export default function DrawingLayer({
   const [textInputValue, setTextInputValue] = useState('');
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [textInputSize, setTextInputSize] = useState<{ width: number; height: number }>({ width: 300, height: 100 });
   const [mousePosition, setMousePosition] = useState<Point | null>(null);
   const [guideLines, setGuideLines] = useState<{ type: 'horizontal' | 'vertical'; position: number }[]>([]);
   const [snapPoints, setSnapPoints] = useState<Point[]>([]);
@@ -201,13 +202,37 @@ export default function DrawingLayer({
     setPenSnapPoint(null);
   }, [currentTool]);
 
-  // Auto-resize textarea
+  // Auto-resize textarea (height only, width is fixed)
   useEffect(() => {
     if (textareaRef.current) {
+      // Reset height to get accurate scrollHeight
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+      const scrollHeight = textareaRef.current.scrollHeight;
+
+      // Set new height with padding
+      const newHeight = Math.max(scrollHeight + 10, 30);
+      textareaRef.current.style.height = scrollHeight + 'px';
+
+      // Width is fixed at 300px
+      setTextInputSize({ width: 300, height: newHeight });
     }
   }, [textInputValue]);
+
+  // Auto-save text input when user clicks elsewhere
+  useEffect(() => {
+    // If text input is active and user clicked on a different element or changed tool, save the text
+    if (textInputPosition && textInputValue.trim()) {
+      // Use a small delay to ensure the click event has been processed
+      const timer = setTimeout(() => {
+        // Check if text input is still active (if not, it was already handled)
+        if (textInputPosition && textInputValue.trim()) {
+          handleTextSubmit();
+        }
+      }, 0);
+
+      return () => clearTimeout(timer);
+    }
+  }, [selectedElementId, currentTool, selectedItems]);
 
   // Convert screen coordinates to SVG coordinates (accounting for zoom/pan)
   const screenToSVG = (clientX: number, clientY: number): Point => {
@@ -392,6 +417,13 @@ export default function DrawingLayer({
   };
 
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    // If text input is active, submit it first before handling any other action
+    // Save current state before calling handleTextSubmit (which clears the state)
+    const hasActiveTextInput = textInputPosition && textInputValue.trim();
+    if (hasActiveTextInput) {
+      handleTextSubmit();
+    }
+
     // If middle button, allow canvas panning (don't start drawing)
     if (e.button === 1) {
       return;
@@ -431,6 +463,7 @@ export default function DrawingLayer({
     if (currentTool === 'text') {
       setTextInputPosition(snapped);
       setTextInputValue('');
+      setEditingTextId(null);
       return;
     }
 
@@ -1695,6 +1728,11 @@ export default function DrawingLayer({
       onTouchStart: (e: React.TouchEvent) => {
         if (e.touches.length !== 1) return;
 
+        // If text input is active, submit it first before handling touch
+        if (textInputPosition && textInputValue.trim()) {
+          handleTextSubmit();
+        }
+
         const touch = e.touches[0];
         if (currentTool === 'select') {
           // Stop propagation to prevent background panning
@@ -1768,6 +1806,11 @@ export default function DrawingLayer({
             transform={element.rotation ? `rotate(${element.rotation} ${lineCenterX} ${lineCenterY})` : undefined}
             {...createElementTouchHandler(element)}
             onMouseDown={(e) => {
+              // If text input is active, submit it first before handling click
+              if (textInputPosition && textInputValue.trim()) {
+                handleTextSubmit();
+              }
+
               if (currentTool === 'select') {
                 e.stopPropagation();
                 toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
@@ -1830,6 +1873,11 @@ export default function DrawingLayer({
             transform={element.rotation ? `rotate(${element.rotation} ${xPx + widthPx / 2} ${yPx + heightPx / 2})` : undefined}
             {...createElementTouchHandler(element)}
             onMouseDown={(e) => {
+              // If text input is active, submit it first before handling click
+              if (textInputPosition && textInputValue.trim()) {
+                handleTextSubmit();
+              }
+
               if (currentTool === 'select') {
                 e.stopPropagation();
                 toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
@@ -1892,6 +1940,11 @@ export default function DrawingLayer({
             transform={element.rotation ? `rotate(${element.rotation} ${cxPx} ${cyPx})` : undefined}
             {...createElementTouchHandler(element)}
             onMouseDown={(e) => {
+              // If text input is active, submit it first before handling click
+              if (textInputPosition && textInputValue.trim()) {
+                handleTextSubmit();
+              }
+
               if (currentTool === 'select') {
                 e.stopPropagation();
                 toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
@@ -1932,64 +1985,149 @@ export default function DrawingLayer({
         );
       }
       case 'text': {
+        // 편집 중인 텍스트는 숨기기 (입력 칸만 보이게)
+        if (editingTextId === element.id) {
+          return null;
+        }
+
         // mm → px 변환
         const xPx = mmToPx(element.x);
         const yPx = mmToPx(element.y);
 
+        // Calculate text bounding box
+        const lines = element.text.split('\n');
+        const lineHeight = element.fontSize * 1.2;
+        const textHeight = lines.length * lineHeight;
+        // Approximate text width (rough estimation)
+        const maxLineLength = Math.max(...lines.map(l => l.length));
+        const textWidth = maxLineLength * element.fontSize * 0.6;
+
         return (
-          <text
-            key={element.id}
-            x={xPx}
-            y={yPx}
-            fontSize={element.fontSize}
-            fill={element.color}
-            fillOpacity={layerOpacity}
-            fontFamily={element.fontFamily}
-            transform={element.rotation ? `rotate(${element.rotation} ${xPx} ${yPx})` : undefined}
-            {...createElementTouchHandler(element)}
-            onDoubleClick={(e) => {
-              // Double-click to edit in select mode
-              if (currentTool === 'select') {
-                e.stopPropagation();
-                setTextInputPosition({ x: xPx, y: yPx });
-                setTextInputValue(element.text);
-                setEditingTextId(element.id);
-              }
-            }}
-            onMouseDown={(e) => {
-              if (currentTool === 'select') {
-                e.stopPropagation();
-                toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
-                const svgPoint = screenToSVG(e.clientX, e.clientY);
-                setIsDraggingElement(true);
-                setDragStartPoint(svgPoint);
-                // Get fresh element from store to avoid stale closure
-                const freshElement = useDrawingStore.getState().elements.find(el => el.id === element.id);
-                setDragElementOriginal(freshElement ? { ...freshElement } : { ...element });
-              } else if (currentTool === 'text') {
-                // Text tool: edit existing text
-                e.stopPropagation();
-                setTextInputPosition({ x: xPx, y: yPx });
-                setTextInputValue(element.text);
-                setEditingTextId(element.id);
-              } else if (currentTool === 'eraser' && (eraserMode === 'universal' || eraserMode === 'shape')) {
-                e.stopPropagation();
-                deleteElement(element.id);
-              }
-            }}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              cursor: currentTool === 'text' ? 'text' : currentTool === 'select' ? (isDraggingElement ? 'grabbing' : 'grab') : currentTool === 'eraser' ? 'not-allowed' : 'default',
-              userSelect: 'none',
-              pointerEvents: 'auto',
-            }}
-          >
-            {element.text.split('\n').map((line, i) => (
-              <tspan key={i} x={xPx} dy={i === 0 ? 0 : element.fontSize * 1.2}>
-                {line}
-              </tspan>
-            ))}
-          </text>
+          <g key={element.id} transform={element.rotation ? `rotate(${element.rotation} ${xPx} ${yPx})` : undefined}>
+            {/* Selection box and delete button */}
+            {isSelected && (
+              <>
+                {/* Bounding box - clickable for dragging */}
+                <rect
+                  x={xPx - 5}
+                  y={yPx - element.fontSize - 5}
+                  width={textWidth + 10}
+                  height={textHeight + 10}
+                  fill="transparent"
+                  stroke="#3b82f6"
+                  strokeWidth="1"
+                  strokeDasharray="4,4"
+                  style={{ cursor: 'grab', pointerEvents: 'auto' }}
+                  onMouseDown={(e) => {
+                    // If text input is active, submit it first
+                    if (textInputPosition && textInputValue.trim()) {
+                      handleTextSubmit();
+                    }
+
+                    if (currentTool === 'select') {
+                      e.stopPropagation();
+                      toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
+                      const svgPoint = screenToSVG(e.clientX, e.clientY);
+                      const mouseXmm = pxToMm(svgPoint.x);
+                      const mouseYmm = pxToMm(svgPoint.y);
+
+                      const offsetX = element.x - mouseXmm;
+                      const offsetY = element.y - mouseYmm;
+
+                      setDragOffset({ x: offsetX, y: offsetY });
+                      setIsDraggingElement(true);
+                    }
+                  }}
+                  {...createElementTouchHandler(element)}
+                />
+                {/* Delete button (X) - positioned at top-right corner */}
+                <g
+                  transform={`translate(${xPx + textWidth + 5}, ${yPx - element.fontSize - 5})`}
+                  style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteElement(element.id);
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onTouchStart={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onTouchEnd={(e) => {
+                    e.stopPropagation();
+                    deleteElement(element.id);
+                  }}
+                >
+                  <circle r="10" fill="#ef4444" />
+                  <line x1="-4" y1="-4" x2="4" y2="4" stroke="white" strokeWidth="2" />
+                  <line x1="4" y1="-4" x2="-4" y2="4" stroke="white" strokeWidth="2" />
+                </g>
+              </>
+            )}
+
+            {/* Text element */}
+            <text
+              x={xPx}
+              y={yPx}
+              fontSize={element.fontSize}
+              fill={element.color}
+              fillOpacity={layerOpacity}
+              fontFamily={element.fontFamily}
+              {...createElementTouchHandler(element)}
+              onDoubleClick={(e) => {
+                // Double-click to edit in select mode
+                if (currentTool === 'select') {
+                  e.stopPropagation();
+                  setTextInputPosition({ x: xPx, y: yPx });
+                  setTextInputValue(element.text);
+                  setEditingTextId(element.id);
+                }
+              }}
+              onMouseDown={(e) => {
+                // If text input is active, submit it first before handling click
+                if (textInputPosition && textInputValue.trim()) {
+                  handleTextSubmit();
+                }
+
+                if (currentTool === 'select') {
+                  e.stopPropagation();
+                  toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
+                  const svgPoint = screenToSVG(e.clientX, e.clientY);
+                  const mouseXmm = pxToMm(svgPoint.x);
+                  const mouseYmm = pxToMm(svgPoint.y);
+
+                  // dragOffset = element 위치 - 마우스 위치 (가구처럼)
+                  const offsetX = element.x - mouseXmm;
+                  const offsetY = element.y - mouseYmm;
+
+                  setDragOffset({ x: offsetX, y: offsetY });
+                  setIsDraggingElement(true);
+                } else if (currentTool === 'text') {
+                  // Text tool: edit existing text
+                  e.stopPropagation();
+                  setTextInputPosition({ x: xPx, y: yPx });
+                  setTextInputValue(element.text);
+                  setEditingTextId(element.id);
+                } else if (currentTool === 'eraser' && (eraserMode === 'universal' || eraserMode === 'shape')) {
+                  e.stopPropagation();
+                  deleteElement(element.id);
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                cursor: currentTool === 'text' ? 'text' : currentTool === 'select' ? (isDraggingElement ? 'grabbing' : 'grab') : currentTool === 'eraser' ? 'not-allowed' : 'default',
+                userSelect: 'none',
+                pointerEvents: 'auto',
+              }}
+            >
+              {element.text.split('\n').map((line, i) => (
+                <tspan key={i} x={xPx} dy={i === 0 ? 0 : element.fontSize * 1.2}>
+                  {line}
+                </tspan>
+              ))}
+            </text>
+          </g>
         );
       }
       case 'path': {
@@ -2015,6 +2153,11 @@ export default function DrawingLayer({
             strokeLinejoin="round"
             {...createElementTouchHandler(element)}
             onMouseDown={(e) => {
+              // If text input is active, submit it first before handling click
+              if (textInputPosition && textInputValue.trim()) {
+                handleTextSubmit();
+              }
+
               if (currentTool === 'select') {
                 e.stopPropagation();
                 toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
@@ -2490,8 +2633,8 @@ export default function DrawingLayer({
           <foreignObject
             x={textInputPosition.x}
             y={textInputPosition.y}
-            width={300}
-            height={200}
+            width={textInputSize.width}
+            height={textInputSize.height}
             style={{ overflow: 'visible' }}
           >
             <div style={{ position: 'relative' }}>
@@ -2524,7 +2667,7 @@ export default function DrawingLayer({
                   fontSize: `${fontSize}px`,
                   fontFamily,
                   color,
-                  minWidth: '100px',
+                  width: '280px',
                   minHeight: `${fontSize * 1.5}px`,
                   resize: 'none',
                   overflow: 'hidden',
