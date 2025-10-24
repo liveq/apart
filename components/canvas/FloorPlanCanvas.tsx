@@ -275,16 +275,6 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
     const { currentTool } = useDrawingStore.getState();
     const isDrawingTool = currentTool !== 'select' && !calibrationMode && !measurementMode && !eraserMode;
 
-    console.log('[TouchMove] Check:', {
-      touches: e.touches.length,
-      lastPanPoint: !!lastPanPointRef.current,
-      isDrawingTool,
-      currentTool,
-      calibrationMode,
-      measurementMode,
-      eraserMode,
-    });
-
     if (e.touches.length === 2 && lastTouchDistance !== null) {
       // Pinch zoom
       e.preventDefault();
@@ -295,15 +285,9 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
     } else if (e.touches.length === 1 && lastPanPointRef.current && !isDrawingTool) {
       // Pan at any zoom level (but not during drawing)
       const touchDuration = Date.now() - touchStartTimeRef.current;
-      console.log('[TouchMove] Duration check:', {
-        touchDuration,
-        threshold: 100,
-        canPan: touchDuration > 100,
-      });
 
       if (touchDuration > 100) {
         // Only pan if touch held for 100ms (not a quick tap)
-        console.log('[TouchMove] Panning!');
         e.preventDefault();
         setIsPanning(true);
         const dx = e.touches[0].clientX - lastPanPointRef.current.x;
@@ -510,14 +494,15 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
 
     const handleTouchStartCapture = (e: TouchEvent) => {
       touchStartTimeRef.current = Date.now();
-      console.log('[Capture] touchstart:', {
-        time: touchStartTimeRef.current,
-        target: (e.target as HTMLElement).tagName,
-      });
+      const targetTag = (e.target as HTMLElement).tagName?.toLowerCase();
 
-      if (e.touches.length === 1) {
+      // Don't set lastPanPoint if touching SVG elements (furniture/drawing shapes)
+      // This allows element dragging instead of background panning
+      const isSVGElement = ['rect', 'circle', 'ellipse', 'line', 'path', 'text', 'polyline', 'polygon'].includes(targetTag);
+      const isFurnitureDiv = (e.target as HTMLElement).classList?.contains('furniture-item');
+
+      if (e.touches.length === 1 && !isSVGElement && !isFurnitureDiv) {
         lastPanPointRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        console.log('[Capture] lastPanPoint set:', { x: e.touches[0].clientX, y: e.touches[0].clientY });
       }
     };
 

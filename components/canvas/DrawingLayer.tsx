@@ -31,6 +31,8 @@ export default function DrawingLayer({
   calibrationMode = false,
 }: DrawingLayerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const handleMouseMoveRef = useRef<(e: MouseEvent | React.MouseEvent<SVGSVGElement>) => void>();
+  const handleMouseUpRef = useRef<(e: MouseEvent | React.MouseEvent<SVGSVGElement>) => void>();
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   // Detect dark mode
@@ -940,6 +942,10 @@ export default function DrawingLayer({
     }
   };
 
+  // Update refs with latest functions
+  handleMouseMoveRef.current = handleMouseMove;
+  handleMouseUpRef.current = handleMouseUp;
+
   // Add window-level event listeners (like FurnitureItem pattern)
   // This ensures drag continues even when mouse leaves SVG area
   useEffect(() => {
@@ -949,31 +955,53 @@ export default function DrawingLayer({
     // Only add listeners when actively dragging, resizing, or drawing
     if (!isDraggingElement && !isResizing && !isCurrentlyDrawing && !isPenDrawing) return;
 
+    let rafId: number | null = null;
+
     const handleMove = (e: MouseEvent) => {
-      handleMouseMove(e);
+      if (rafId) return; // Skip if already scheduled
+      rafId = requestAnimationFrame(() => {
+        handleMouseMoveRef.current?.(e);
+        rafId = null;
+      });
     };
 
     const handleUp = (e: MouseEvent) => {
-      handleMouseUp(e);
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      handleMouseUpRef.current?.(e);
     };
 
     const handleTouchMove = (e: TouchEvent) => {
       if (e.touches.length === 1) {
+        e.preventDefault(); // Prevent background panning
+
+        if (rafId) return; // Skip if already scheduled
+
         const touch = e.touches[0];
-        const mouseEvent = new MouseEvent('mousemove', {
-          clientX: touch.clientX,
-          clientY: touch.clientY,
-          bubbles: true,
+        rafId = requestAnimationFrame(() => {
+          const mouseEvent = new MouseEvent('mousemove', {
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            bubbles: true,
+          });
+          handleMouseMoveRef.current?.(mouseEvent);
+          rafId = null;
         });
-        handleMouseMove(mouseEvent);
       }
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
+      e.preventDefault(); // Prevent background panning
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
       const mouseEvent = new MouseEvent('mouseup', {
         bubbles: true,
       });
-      handleMouseUp(mouseEvent);
+      handleMouseUpRef.current?.(mouseEvent);
     };
 
     window.addEventListener('mousemove', handleMove);
@@ -982,6 +1010,9 @@ export default function DrawingLayer({
     window.addEventListener('touchend', handleTouchEnd);
 
     return () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
       window.removeEventListener('touchmove', handleTouchMove);
@@ -993,24 +1024,6 @@ export default function DrawingLayer({
     isCurrentlyDrawing,
     isPenDrawing,
     calibrationMode,
-    currentTool,
-    selectedElementId,
-    dragOffset,
-    elements,
-    tempStart,
-    tempEnd,
-    penPoints,
-    resizeStart,
-    resizeHandle,
-    color,
-    fillColor,
-    thickness,
-    lineStyle,
-    fontSize,
-    fontFamily,
-    scale,
-    canvasWidth,
-    realWidth,
   ]);
 
   const handleTextSubmit = () => {
