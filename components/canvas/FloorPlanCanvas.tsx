@@ -108,7 +108,7 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
         setShowSampleFloorPlan(false);
       }
     }
-  }, [currentPageIndex, pages]);
+  }, [currentPageIndex]);
 
   // 현재 작업 내용을 페이지에 자동 저장
   useEffect(() => {
@@ -122,7 +122,7 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
         ),
       }));
     }
-  }, [furniture, currentPageIndex, pages.length]);
+  }, [furniture, currentPageIndex]);
 
 
   useEffect(() => {
