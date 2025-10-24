@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, RefObject, useRef, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useAppStore } from '@/lib/stores/app-store';
 import { useFurnitureStore } from '@/lib/stores/furniture-store';
 import { useDrawingStore } from '@/lib/stores/drawing-store';
@@ -10,6 +11,8 @@ import BottomSheet from './BottomSheet';
 import CanvasSizeDialog from './CanvasSizeDialog';
 import LayoutsDialog from './LayoutsDialog';
 import toast from 'react-hot-toast';
+
+const PDFConversionModal = dynamic(() => import('./PDFConversionModal'), { ssr: false });
 
 interface MobileToolbarProps {
   canvasRef: RefObject<HTMLElement | null>;
@@ -39,7 +42,7 @@ export default function MobileToolbar({
     setShowSampleFloorPlan,
     showCanvasSizeDialog,
     setShowCanvasSizeDialog
-  } = useAppStore();
+  , pages, addPages, setCurrentPageIndex } = useAppStore();
   const {
     snapEnabled,
     setSnapEnabled,
@@ -63,6 +66,7 @@ export default function MobileToolbar({
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [isNarrowScreen, setIsNarrowScreen] = useState(false);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Screen width detection for responsive positioning
@@ -108,11 +112,100 @@ export default function MobileToolbar({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast.error(t('imageOnlyError'));
+    // Check if file is a PDF
+    const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+    if (isPDF) {
+      // PDF 파일 - 모달 표시
+      setPdfFile(file);
+      setShowMenuSheet(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 
+    if (!file.type.startsWith('image/')) {
+      toast.error('이미지 또는 PDF 파일만 업로드 가능합니다');
+      return;
+    }
+
+    // 이미지 파일 처리 (기존 로직 그대로)
+    processImageFile(file);
+  };
+
+  // 프로젝트 전체 저장 (모든 페이지)
+  const handleSaveProject = () => {
+    if (pages.length === 0) {
+      toast.error('저장할 페이지가 없습니다');
+      return;
+    }
+
+    const projectData = {
+      version: '1.0',
+      pages: pages,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    const dataStr = JSON.stringify(projectData, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    link.download = `apart-project-${timestamp}.apart`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success(`프로젝트가 저장되었습니다 (${pages.length}개 페이지)`);
+    setShowMenuSheet(false);
+  };
+
+  // 프로젝트 전체 로드
+  const handleLoadProject = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.apart')) {
+      toast.error('.apart 파일만 로드할 수 있습니다');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const projectData = JSON.parse(event.target?.result as string);
+        
+        if (!projectData.pages || !Array.isArray(projectData.pages)) {
+          toast.error('올바른 프로젝트 파일이 아닙니다');
+          return;
+        }
+
+        // 기존 pages 초기화 후 새로운 pages 추가
+        useAppStore.setState({ pages: projectData.pages, currentPageIndex: 0 });
+        
+        toast.success(`프로젝트가 로드되었습니다 (${projectData.pages.length}개 페이지)`);
+        setShowMenuSheet(false);
+      } catch (error) {
+        console.error('프로젝트 로드 실패:', error);
+        toast.error('프로젝트 파일을 읽을 수 없습니다');
+      }
+    };
+
+    reader.readAsText(file);
+    
+    // Reset file input
+    if (e.target) {
+      e.target.value = '';
+    }
+  };
+
+    const processImageFile = (file: File) => {
     // Convert image to base64 for localStorage persistence
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -165,7 +258,7 @@ export default function MobileToolbar({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,application/pdf"
         onChange={handleImageUpload}
         className="hidden"
       />
@@ -321,6 +414,34 @@ export default function MobileToolbar({
           title={t('loadTooltip') || '작업 불러오기'}
         >
           📂
+
+        {/* 프로젝트 저장/로드 버튼 (페이지 여러 개) */}
+        {pages.length > 0 && (
+          <>
+            <button
+              onClick={handleSaveProject}
+              className="px-2 py-1.5 bg-green-600 text-white hover:bg-green-700 rounded text-sm flex-shrink-0"
+              title="모든 페이지를 프로젝트 파일로 저장"
+            >
+              💾📄
+            </button>
+
+            <input
+              type="file"
+              accept=".apart"
+              onChange={handleLoadProject}
+              style={{ display: 'none' }}
+              id="mobile-project-file-input"
+            />
+            <button
+              onClick={() => document.getElementById('mobile-project-file-input')?.click()}
+              className="px-2 py-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded text-sm flex-shrink-0"
+              title="프로젝트 파일 로드 (.apart)"
+            >
+              📂📄
+            </button>
+          </>
+        )}
         </button>
 
         {/* Drawing Toolbar Expand Button (in header on wide screens) */}
@@ -484,6 +605,40 @@ export default function MobileToolbar({
         onClose={() => setShowLoadDialog(false)}
         mode="load"
       />
+
+      {/* PDF Conversion Modal */}
+      {pdfFile && (
+        <PDFConversionModal
+          file={pdfFile}
+          onConvert={(convertedPages) => {
+            // 변환된 여러 페이지를 pages에 추가
+            const newPages = convertedPages.map((page, index) => {
+              const reader = new FileReader();
+              return new Promise<any>((resolve) => {
+                reader.onloadend = () => {
+                  resolve({
+                    id: `page-${Date.now()}-${index}`,
+                    name: `페이지 ${page.pageNumber}`,
+                    imageUrl: reader.result as string,
+                    furniture: [],
+                    drawings: [],
+                    createdAt: Date.now(),
+                  });
+                };
+                reader.readAsDataURL(page.blob);
+              });
+            });
+
+            Promise.all(newPages).then((pages) => {
+              useAppStore.getState().addPages(pages);
+              toast.success(`${pages.length}개 페이지가 로드되었습니다`);
+            });
+
+            setPdfFile(null);
+          }}
+          onCancel={() => setPdfFile(null)}
+        />
+      )}
     </>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { forwardRef, useEffect, useState, useRef, useImperativeHandle, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { useFurnitureStore } from '@/lib/stores/furniture-store';
 import { useAppStore } from '@/lib/stores/app-store';
 import { useDrawingStore } from '@/lib/stores/drawing-store';
@@ -18,6 +19,8 @@ import { useKeyboardShortcuts } from '@/lib/hooks/useKeyboardShortcuts';
 import { useIsMobile } from '@/lib/hooks/useMediaQuery';
 import toast from 'react-hot-toast';
 
+const PDFConversionModal = dynamic(() => import('@/components/ui/PDFConversionModal'), { ssr: false });
+
 interface FloorPlanCanvasProps {
   measurementMode: boolean;
   calibrationMode: boolean;
@@ -30,12 +33,13 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
   const isMobile = useIsMobile();
   const { furniture, addMeasurement, recalibrateMeasurements, clearAll } = useFurnitureStore();
   const { clearSelection } = useSelectionStore();
-  const { setViewport, calibratedScale, setCalibratedScale, uploadedImageUrl, showSampleFloorPlan, setShowSampleFloorPlan, setUploadedImageUrl, setShowCanvasSizeDialog } = useAppStore();
+  const { setViewport, calibratedScale, setCalibratedScale, uploadedImageUrl, showSampleFloorPlan, setShowSampleFloorPlan, setUploadedImageUrl, setShowCanvasSizeDialog, pages, currentPageIndex, getCurrentPage } = useAppStore();
   const { drawingMode, setDrawingMode, canvasWidth: drawingCanvasWidth, canvasHeight: drawingCanvasHeight, currentTool, eraserMode: drawingEraserMode, clearAllElements, toolbarCollapsed } = useDrawingStore();
   const [displayScale, setDisplayScale] = useState(0.05); // 캔버스 표시용 scale (항상 자동 계산)
   const [measurementStart, setMeasurementStart] = useState<{ x: number; y: number } | null>(null);
   const [measurementMousePos, setMeasurementMousePos] = useState<{ x: number; y: number } | null>(null);
   const [uploadedImageDimensions, setUploadedImageDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const centerFileInputRef = useRef<HTMLInputElement>(null);
 
   // 가구 크기 계산용 scale: calibratedScale이 있으면 사용, 없으면 displayScale 사용
@@ -86,6 +90,40 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
       setUploadedImageDimensions(null);
     }
   }, [uploadedImageUrl]);
+
+  // 페이지 전환 동기화: currentPageIndex가 변경되면 해당 페이지의 데이터를 로드
+  useEffect(() => {
+    if (pages.length > 0 && currentPageIndex >= 0 && currentPageIndex < pages.length) {
+      const currentPage = pages[currentPageIndex];
+      
+      // 현재 페이지의 furniture를 furniture-store에 로드
+      useFurnitureStore.setState({ furniture: currentPage.furniture || [] });
+      
+      // 현재 페이지의 drawings를 drawing-store에 로드
+      useDrawingStore.setState({ elements: currentPage.drawings || [] });
+      
+      // 현재 페이지의 이미지를 uploadedImageUrl로 설정
+      if (currentPage.imageUrl) {
+        setUploadedImageUrl(currentPage.imageUrl);
+        setShowSampleFloorPlan(false);
+      }
+    }
+  }, [currentPageIndex, pages]);
+
+  // 현재 작업 내용을 페이지에 자동 저장
+  useEffect(() => {
+    if (pages.length > 0 && currentPageIndex >= 0 && currentPageIndex < pages.length) {
+      // 현재 페이지의 furniture와 drawings를 업데이트
+      useAppStore.setState((state) => ({
+        pages: state.pages.map((page, index) =>
+          index === currentPageIndex
+            ? { ...page, furniture: furniture, drawings: useDrawingStore.getState().elements }
+            : page
+        ),
+      }));
+    }
+  }, [furniture, currentPageIndex, pages.length]);
+
 
   useEffect(() => {
     const updateSize = () => {
@@ -786,12 +824,30 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check if file is an image
-    if (!file.type.startsWith('image/')) {
-      alert('이미지 파일만 업로드 가능합니다');
+    // Check if file is a PDF
+    const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+    if (isPDF) {
+      // PDF 파일 - 모달 표시
+      setPdfFile(file);
+      // Reset file input
+      if (centerFileInputRef.current) {
+        centerFileInputRef.current.value = '';
+      }
       return;
     }
 
+    // Check if file is an image
+    if (!file.type.startsWith('image/')) {
+      toast.error('이미지 또는 PDF 파일만 업로드 가능합니다');
+      return;
+    }
+
+    // 이미지 파일 처리 (기존 로직 그대로)
+    processCenterImageFile(file);
+  };
+
+  const processCenterImageFile = (file: File) => {
     // Convert image to base64 for localStorage persistence
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -811,7 +867,7 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
     };
 
     reader.onerror = () => {
-      alert('이미지 업로드 중 오류가 발생했습니다');
+      toast.error('이미지 업로드 중 오류가 발생했습니다');
     };
 
     reader.readAsDataURL(file);
@@ -1052,7 +1108,7 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
               <input
                 ref={centerFileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,application/pdf"
                 onChange={handleCenterImageUpload}
                 style={{ display: 'none' }}
               />
@@ -1482,6 +1538,18 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
           )}
           onClose={handleCalibrationCancel}
           onConfirm={handleCalibrationConfirm}
+        />
+      )}
+
+      {/* PDF Conversion Modal */}
+      {pdfFile && (
+        <PDFConversionModal
+          file={pdfFile}
+          onConvert={(imageFile) => {
+            processCenterImageFile(imageFile);
+            setPdfFile(null);
+          }}
+          onCancel={() => setPdfFile(null)}
         />
       )}
     </div>

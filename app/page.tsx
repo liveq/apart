@@ -6,6 +6,7 @@ import FurniturePanel from '@/components/ui/FurniturePanel';
 import Toolbar from '@/components/ui/Toolbar';
 import RightSidebar from '@/components/ui/RightSidebar';
 import MobileLayout from '@/components/layouts/MobileLayout';
+import PageTabs from '@/components/ui/PageTabs';
 import { useIsMobile } from '@/lib/hooks/useMediaQuery';
 
 export default function Home() {
@@ -89,6 +90,8 @@ export default function Home() {
         eraserMode={eraserMode}
         onToggleEraser={handleToggleEraser}
       />
+
+      <PageTabs />
 
       <div className="flex flex-1 overflow-hidden">
         <FurniturePanel />

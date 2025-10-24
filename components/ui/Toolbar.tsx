@@ -6,10 +6,13 @@ import { useDrawingStore } from '@/lib/stores/drawing-store';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { exportAsJPEG } from '@/lib/utils/export';
 import { RefObject, useState, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import LayoutsDialog from './LayoutsDialog';
 import CanvasSizeDialog from './CanvasSizeDialog';
 import toast from 'react-hot-toast';
 import type { DrawingTool, EraserMode } from '@/lib/stores/drawing-store';
+
+const PDFConversionModal = dynamic(() => import('./PDFConversionModal'), { ssr: false });
 
 interface ToolbarProps {
   canvasRef: RefObject<HTMLElement | null>;
@@ -23,7 +26,7 @@ interface ToolbarProps {
 
 export default function Toolbar({ canvasRef, measurementMode, onToggleMeasurement, calibrationMode, onToggleCalibration, eraserMode, onToggleEraser }: ToolbarProps) {
   const { t } = useTranslation();
-  const { language: currentLang, setLanguage, calibratedScale, setCalibratedScale, uploadedImageUrl, setUploadedImageUrl, showSampleFloorPlan, setShowSampleFloorPlan, showCanvasSizeDialog, setShowCanvasSizeDialog } = useAppStore();
+  const { language: currentLang, setLanguage, calibratedScale, setCalibratedScale, uploadedImageUrl, setUploadedImageUrl, showSampleFloorPlan, setShowSampleFloorPlan, showCanvasSizeDialog, setShowCanvasSizeDialog, pages, addPages, setCurrentPageIndex } = useAppStore();
   const { snapEnabled, setSnapEnabled, snapSize, setSnapSize, undo, redo, clearAll } = useFurnitureStore();
   const { setDrawingMode, setCanvasSize, clearAllElements, drawingMode, saveCurrentWork, currentTool, eraserMode: currentEraserMode, toolbarCollapsed, setToolbarCollapsed } = useDrawingStore();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -37,6 +40,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
     dontShowAgainKey?: string;
   } | null>(null);
   const [dontShowAgainChecked, setDontShowAgainChecked] = useState(false);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -119,12 +123,30 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check if file is an image
-    if (!file.type.startsWith('image/')) {
-      toast.error('이미지 파일만 업로드 가능합니다');
+    // Check if file is a PDF
+    const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+    if (isPDF) {
+      // PDF 파일 - 모달 표시
+      setPdfFile(file);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 
+    // Check if file is an image
+    if (!file.type.startsWith('image/')) {
+      toast.error('이미지 또는 PDF 파일만 업로드 가능합니다');
+      return;
+    }
+
+    // 이미지 파일 처리 (기존 로직 그대로)
+    processImageFile(file);
+  };
+
+  const processImageFile = (file: File) => {
     // Convert image to base64 for localStorage persistence
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -364,7 +386,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,application/pdf"
           onChange={handleImageUpload}
           style={{ display: 'none' }}
         />
@@ -550,6 +572,36 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
           📂 {t('loadButton')}
         </button>
 
+        {/* 프로젝트 저장/로드 버튼 (페이지 여러 개 저장) */}
+        {pages.length > 0 && (
+          <>
+            <div className="w-px h-6 bg-border mx-2" />
+            
+            <button
+              onClick={handleSaveProject}
+              className="px-3 py-2 bg-green-600 text-white hover:bg-green-700 hover:ring-2 hover:ring-green-300 hover:shadow-md rounded text-sm transition-all whitespace-nowrap flex items-center gap-1"
+              title="모든 페이지를 프로젝트 파일로 저장"
+            >
+              💾📄 프로젝트 저장
+            </button>
+
+            <input
+              type="file"
+              accept=".apart"
+              onChange={handleLoadProject}
+              style={{ display: 'none' }}
+              id="project-file-input"
+            />
+            <button
+              onClick={() => document.getElementById('project-file-input')?.click()}
+              className="px-3 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all whitespace-nowrap flex items-center gap-1"
+              title="프로젝트 파일 로드 (.apart)"
+            >
+              📂📄 프로젝트 로드
+            </button>
+          </>
+        )}
+
         <div className="w-px h-6 bg-border mx-2" />
 
         <button
@@ -596,6 +648,18 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
         onClose={() => setShowLoadWorkDialog(false)}
         mode="load"
       />
+
+      {/* PDF Conversion Modal */}
+      {pdfFile && (
+        <PDFConversionModal
+          file={pdfFile}
+          onConvert={(imageFile) => {
+            processImageFile(imageFile);
+            setPdfFile(null);
+          }}
+          onCancel={() => setPdfFile(null)}
+        />
+      )}
 
       {/* Custom Confirmation Dialog */}
       {showConfirmDialog && (
