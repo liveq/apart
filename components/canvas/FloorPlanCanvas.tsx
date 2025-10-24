@@ -124,6 +124,28 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
     }
   }, [furniture, currentPageIndex]);
 
+  // drawings 변경 감지 및 자동 저장 (subscribe 방식)
+  useEffect(() => {
+    const unsubscribe = useDrawingStore.subscribe((state) => {
+      // 페이지가 있고 현재 페이지가 유효할 때만
+      const appState = useAppStore.getState();
+      if (appState.pages.length > 0 && appState.currentPageIndex >= 0 && appState.currentPageIndex < appState.pages.length) {
+        // drawings 업데이트
+        useAppStore.setState((appState) => ({
+          pages: appState.pages.map((page, index) =>
+            index === appState.currentPageIndex
+              ? { ...page, drawings: state.elements }
+              : page
+          ),
+        }));
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentPageIndex]);
+
+
+
 
   useEffect(() => {
     const updateSize = () => {
