@@ -653,8 +653,30 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
       {pdfFile && (
         <PDFConversionModal
           file={pdfFile}
-          onConvert={(imageFile) => {
-            processImageFile(imageFile);
+          onConvert={(convertedPages) => {
+            // 변환된 여러 페이지를 pages에 추가
+            const newPages = convertedPages.map((page, index) => {
+              const reader = new FileReader();
+              return new Promise<any>((resolve) => {
+                reader.onloadend = () => {
+                  resolve({
+                    id: `page-${Date.now()}-${index}`,
+                    name: `페이지 ${page.pageNumber}`,
+                    imageUrl: reader.result as string,
+                    furniture: [],
+                    drawings: [],
+                    createdAt: Date.now(),
+                  });
+                };
+                reader.readAsDataURL(page.blob);
+              });
+            });
+
+            Promise.all(newPages).then((pages) => {
+              useAppStore.getState().addPages(pages);
+              toast.success(`${pages.length}개 페이지가 로드되었습니다`);
+            });
+
             setPdfFile(null);
           }}
           onCancel={() => setPdfFile(null)}
