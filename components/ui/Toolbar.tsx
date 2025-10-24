@@ -270,7 +270,76 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
       showDontShowAgain: true,
       dontShowAgainKey: dontShowKey,
     });
+  }
+  // 프로젝트 전체 저장 (모든 페이지)
+  const handleSaveProject = () => {
+    if (pages.length === 0) {
+      toast.error('저장할 페이지가 없습니다');
+      return;
+    }
+
+    const projectData = {
+      version: '1.0',
+      pages: pages,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    const dataStr = JSON.stringify(projectData, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    link.download = `apart-project-${timestamp}.apart`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success(`프로젝트가 저장되었습니다 (${pages.length}개 페이지)`);
   };
+
+  // 프로젝트 전체 로드
+  const handleLoadProject = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.apart')) {
+      toast.error('.apart 파일만 로드할 수 있습니다');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const projectData = JSON.parse(event.target?.result as string);
+        
+        if (!projectData.pages || !Array.isArray(projectData.pages)) {
+          toast.error('올바른 프로젝트 파일이 아닙니다');
+          return;
+        }
+
+        // 기존 pages 초기화 후 새로운 pages 추가
+        useAppStore.setState({ pages: projectData.pages, currentPageIndex: 0 });
+        
+        toast.success(`프로젝트가 로드되었습니다 (${projectData.pages.length}개 페이지)`);
+      } catch (error) {
+        console.error('프로젝트 로드 실패:', error);
+        toast.error('프로젝트 파일을 읽을 수 없습니다');
+      }
+    };
+
+    reader.readAsText(file);
+    
+    // Reset file input
+    if (e.target) {
+      e.target.value = '';
+    }
+  };
+
+;
 
   const handleLoadClick = () => {
     // Check if "don't show again" is checked
