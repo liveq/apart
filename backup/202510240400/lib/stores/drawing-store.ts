@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { devtools, persist } from 'zustand/middleware';
 import { useLayerStore } from './layer-store';
 
 export type DrawingTool = 'select' | 'line' | 'rectangle' | 'circle' | 'text' | 'pen' | 'eraser';
@@ -230,7 +230,8 @@ function migratePixelsToMM(elements: DrawingElement[], defaultScale: number): Dr
 
 export const useDrawingStore = create<DrawingState>()(
   devtools(
-    (set, get) => ({
+    persist(
+      (set, get) => ({
         // Initial state
         elements: [],
         selectedElementId: null,
@@ -319,8 +320,8 @@ export const useDrawingStore = create<DrawingState>()(
               el.id === id ? { ...el, ...updates } : el
             )
           }));
-          // Note: Auto-save removed to prevent performance issues during drag
-          // Save is now handled explicitly in handleMouseUp
+          // Auto-save after updating element
+          setTimeout(() => get().saveCurrentWork(), 100);
         },
 
         deleteElement: (id) => {
@@ -654,6 +655,38 @@ export const useDrawingStore = create<DrawingState>()(
           });
         },
       }),
+      {
+        name: 'drawing-storage',
+        version: 2, // v2: 좌표 mm 단위로 변경
+        partialize: (state) => ({
+          // Do NOT persist elements - only save explicitly through saved works
+          // elements: state.elements,
+          showGrid: state.showGrid,
+          showGridLabels: state.showGridLabels,
+          showDimensionLabels: state.showDimensionLabels,
+          canvasWidth: state.canvasWidth,
+          canvasHeight: state.canvasHeight,
+          canvasUnit: state.canvasUnit,
+          guidelineColor: state.guidelineColor,
+          eraserMode: state.eraserMode,
+          color: state.color,
+          fillColor: state.fillColor,
+          thickness: state.thickness,
+          lineStyle: state.lineStyle,
+          opacity: state.opacity,
+          fontSize: state.fontSize,
+          fontFamily: state.fontFamily,
+        }),
+        migrate: (persistedState: any, version: number) => {
+          // v1 (픽셀 단위) → v2 (mm 단위) 마이그레이션
+          if (version < 2 && persistedState.elements) {
+            const defaultScale = 0.05; // 기본 scale (px/mm)
+            persistedState.elements = migratePixelsToMM(persistedState.elements, defaultScale);
+          }
+          return persistedState;
+        },
+      }
+    ),
     { name: 'drawing-store' }
   )
 );

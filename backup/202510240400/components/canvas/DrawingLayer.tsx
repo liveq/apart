@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useDrawingStore, DrawingElement, Point } from '@/lib/stores/drawing-store';
 import { useLayerStore } from '@/lib/stores/layer-store';
 import { useSelectionStore } from '@/lib/stores/selection-store';
@@ -76,7 +76,6 @@ export default function DrawingLayer({
     updateElement,
     deleteElement,
     setSelectedElementId,
-    saveCurrentWork,
   } = useDrawingStore();
 
   const { isSelected: isItemSelected, toggleSelection } = useSelectionStore();
@@ -108,7 +107,8 @@ export default function DrawingLayer({
 
   // Drag state for moving elements in select mode
   const [isDraggingElement, setIsDraggingElement] = useState(false);
-  const [dragOffset, setDragOffset] = useState<Point>({ x: 0, y: 0 });
+  const [dragStartPoint, setDragStartPoint] = useState<Point | null>(null);
+  const [dragElementOriginal, setDragElementOriginal] = useState<any>(null);
 
   // Resize state for resizing elements in select mode
   const [isResizing, setIsResizing] = useState(false);
@@ -519,7 +519,7 @@ export default function DrawingLayer({
     }
   };
 
-  const handleMouseMove = (e: MouseEvent | React.MouseEvent<SVGSVGElement>) => {
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const svgPoint = screenToSVG(e.clientX, e.clientY);
     const gridSnapped = snapToGrid(svgPoint.x, svgPoint.y);
 
@@ -542,11 +542,10 @@ export default function DrawingLayer({
       const element = resizeStart.element;
       const minSizePx = (100 / (realWidth || (canvasWidth / scale))) * canvasWidth; // 100mm minimum
 
-      // OPTIMIZATION: Calculate new dimensions but store in local state only
-      // Skip smart guides during resize for performance
-      // const { snappedPos, guides, snaps } = detectGuidesAtPosition(gridSnapped);
-      // setGuideLines(guides);
-      // setSnapPoints(snaps);
+      // Show guides during resize
+      const { snappedPos, guides, snaps } = detectGuidesAtPosition(gridSnapped);
+      setGuideLines(guides);
+      setSnapPoints(snaps);
 
       if (element.type === 'rectangle') {
         const rotation = element.rotation || 0;
@@ -630,6 +629,7 @@ export default function DrawingLayer({
         const newX = newCenterX - newWidth / 2;
         const newY = newCenterY - newHeight / 2;
 
+        // Convert px→mm before updating
         updateElement(selectedElementId, {
           x: pxToMm(newX),
           y: pxToMm(newY),
@@ -718,6 +718,7 @@ export default function DrawingLayer({
         const newCx = anchorWorldX - (newAnchorLogicalX * cos - newAnchorLogicalY * sin);
         const newCy = anchorWorldY - (newAnchorLogicalX * sin + newAnchorLogicalY * cos);
 
+        // Convert px→mm before updating
         updateElement(selectedElementId, {
           cx: pxToMm(newCx),
           cy: pxToMm(newCy),
@@ -725,6 +726,7 @@ export default function DrawingLayer({
           ry: pxToMm(newRy),
         });
       } else if (element.type === 'line') {
+        // Convert px→mm before updating
         if (resizeHandle === 'start') {
           updateElement(selectedElementId, {
             startX: pxToMm(snappedPos.x),
@@ -740,75 +742,87 @@ export default function DrawingLayer({
       return;
     }
 
-    // Handle element dragging in select mode (가구처럼 간단하게)
-    if (isDraggingElement && selectedElementId) {
-      // 현재 마우스 위치 (mm)
-      const mouseXmm = pxToMm(svgPoint.x);
-      const mouseYmm = pxToMm(svgPoint.y);
+    // Handle element dragging in select mode
+    if (isDraggingElement && dragStartPoint && dragElementOriginal && selectedElementId) {
+      const element = dragElementOriginal;
 
-      // 새 위치 = 마우스 + dragOffset
-      const newX = mouseXmm + dragOffset.x;
-      const newY = mouseYmm + dragOffset.y;
+      // Calculate mouse movement delta in px (without grid snap for smooth dragging)
+      const dxPx = svgPoint.x - dragStartPoint.x;
+      const dyPx = svgPoint.y - dragStartPoint.y;
 
-      // Get current element from store
-      const element = elements.find(el => el.id === selectedElementId);
-      if (!element) return;
+      // Convert delta px→mm for element update
+      const dxMm = pxToMm(dxPx);
+      const dyMm = pxToMm(dyPx);
 
-      // 바로 업데이트 (throttle 없이)
-      if (element.type === 'rectangle') {
-        updateElement(selectedElementId, { x: newX, y: newY });
-      } else if (element.type === 'circle') {
-        updateElement(selectedElementId, { cx: newX, cy: newY });
-      } else if (element.type === 'line') {
-        const dx = newX - element.startX;
-        const dy = newY - element.startY;
+      // Calculate target position for guide detection
+      let targetX = svgPoint.x;
+      let targetY = svgPoint.y;
+
+      // Show guides at mouse position
+      const { guides, snaps } = detectGuidesAtPosition({ x: targetX, y: targetY });
+      setGuideLines(guides);
+      setSnapPoints(snaps);
+
+      // Update element position by adding delta to original position (element coords in mm)
+      if (element.type === 'line') {
         updateElement(selectedElementId, {
-          startX: element.startX + dx,
-          startY: element.startY + dy,
-          endX: element.endX + dx,
-          endY: element.endY + dy,
+          startX: element.startX + dxMm,
+          startY: element.startY + dyMm,
+          endX: element.endX + dxMm,
+          endY: element.endY + dyMm,
         });
-      } else if (element.type === 'path') {
-        const dx = newX - element.points[0].x;
-        const dy = newY - element.points[0].y;
+      } else if (element.type === 'rectangle') {
         updateElement(selectedElementId, {
-          points: element.points.map((pt: Point) => ({ x: pt.x + dx, y: pt.y + dy })),
+          x: element.x + dxMm,
+          y: element.y + dyMm,
+        });
+      } else if (element.type === 'circle') {
+        updateElement(selectedElementId, {
+          cx: element.cx + dxMm,
+          cy: element.cy + dyMm,
         });
       } else if (element.type === 'text') {
-        updateElement(selectedElementId, { x: newX, y: newY });
+        updateElement(selectedElementId, {
+          x: element.x + dxMm,
+          y: element.y + dyMm,
+        });
+      } else if (element.type === 'path') {
+        const newPoints = element.points.map(pt => ({
+          x: pt.x + dxMm,
+          y: pt.y + dyMm,
+        }));
+        updateElement(selectedElementId, {
+          points: newPoints,
+        });
       }
-
       return;
     }
 
     // Show guides for line and rectangle tools (even before first click)
-    // SKIP Smart Guides during drag/resize for performance
-    if (!isDraggingElement && !isResizing) {
-      if (currentTool === 'line' || currentTool === 'rectangle' || currentTool === 'circle') {
-        if (!isCurrentlyDrawing) {
-          // Before first click - show guides at mouse position
-          const { snappedPos, guides, snaps } = detectGuidesAtPosition(gridSnapped);
+    if (currentTool === 'line' || currentTool === 'rectangle' || currentTool === 'circle') {
+      if (!isCurrentlyDrawing) {
+        // Before first click - show guides at mouse position
+        const { snappedPos, guides, snaps } = detectGuidesAtPosition(gridSnapped);
+        setGuideLines(guides);
+        setSnapPoints(snaps);
+      } else if (tempStart) {
+        // After first click - drawing in progress
+        if (currentTool === 'line') {
+          const orthoSnapped = snapToOrtho(tempStart, gridSnapped);
+          const { snappedPos, guides, snaps } = detectGuidesAtPosition(orthoSnapped);
+          setTempEnd(snappedPos);
           setGuideLines(guides);
           setSnapPoints(snaps);
-        } else if (tempStart) {
-          // After first click - drawing in progress
-          if (currentTool === 'line') {
-            const orthoSnapped = snapToOrtho(tempStart, gridSnapped);
-            const { snappedPos, guides, snaps } = detectGuidesAtPosition(orthoSnapped);
-            setTempEnd(snappedPos);
-            setGuideLines(guides);
-            setSnapPoints(snaps);
-          } else if (currentTool === 'rectangle' || currentTool === 'circle') {
-            const { snappedPos, guides, snaps } = detectGuidesAtPosition(gridSnapped);
-            setTempEnd(snappedPos);
-            setGuideLines(guides);
-            setSnapPoints(snaps);
-          }
+        } else if (currentTool === 'rectangle' || currentTool === 'circle') {
+          const { snappedPos, guides, snaps } = detectGuidesAtPosition(gridSnapped);
+          setTempEnd(snappedPos);
+          setGuideLines(guides);
+          setSnapPoints(snaps);
         }
-      } else {
-        setGuideLines([]);
-        setSnapPoints([]);
       }
+    } else {
+      setGuideLines([]);
+      setSnapPoints([]);
     }
 
     // Pen tool Ctrl mode: detect snap to existing points
@@ -832,7 +846,7 @@ export default function DrawingLayer({
     }
   };
 
-  const handleMouseUp = (e: MouseEvent | React.MouseEvent<SVGSVGElement>) => {
+  const handleMouseUp = (e: React.MouseEvent<SVGSVGElement>) => {
     // Handle pen drawing completion (freehand mode only)
     if (isPenDrawing && currentTool === 'pen') {
       // Only create path if it has meaningful length and multiple points
@@ -930,88 +944,17 @@ export default function DrawingLayer({
       setResizeStart(null);
       setGuideLines([]);
       setSnapPoints([]);
-      saveCurrentWork();
     }
 
     // End element dragging
     if (isDraggingElement) {
       setIsDraggingElement(false);
-      saveCurrentWork();
+      setDragStartPoint(null);
+      setDragElementOriginal(null);
+      setGuideLines([]);
+      setSnapPoints([]);
     }
   };
-
-  // Add window-level event listeners (like FurnitureItem pattern)
-  // This ensures drag continues even when mouse leaves SVG area
-  useEffect(() => {
-    // Don't add listeners if in calibration mode
-    if (calibrationMode) return;
-
-    // Only add listeners when actively dragging, resizing, or drawing
-    if (!isDraggingElement && !isResizing && !isCurrentlyDrawing && !isPenDrawing) return;
-
-    const handleMove = (e: MouseEvent) => {
-      handleMouseMove(e);
-    };
-
-    const handleUp = (e: MouseEvent) => {
-      handleMouseUp(e);
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 1) {
-        const touch = e.touches[0];
-        const mouseEvent = new MouseEvent('mousemove', {
-          clientX: touch.clientX,
-          clientY: touch.clientY,
-          bubbles: true,
-        });
-        handleMouseMove(mouseEvent);
-      }
-    };
-
-    const handleTouchEnd = (e: TouchEvent) => {
-      const mouseEvent = new MouseEvent('mouseup', {
-        bubbles: true,
-      });
-      handleMouseUp(mouseEvent);
-    };
-
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleUp);
-    window.addEventListener('touchmove', handleTouchMove, { passive: false });
-    window.addEventListener('touchend', handleTouchEnd);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('mouseup', handleUp);
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [
-    isDraggingElement,
-    isResizing,
-    isCurrentlyDrawing,
-    isPenDrawing,
-    calibrationMode,
-    currentTool,
-    selectedElementId,
-    dragOffset,
-    elements,
-    tempStart,
-    tempEnd,
-    penPoints,
-    resizeStart,
-    resizeHandle,
-    color,
-    fillColor,
-    thickness,
-    lineStyle,
-    fontSize,
-    fontFamily,
-    scale,
-    canvasWidth,
-    realWidth,
-  ]);
 
   const handleTextSubmit = () => {
     if (textInputPosition && textInputValue.trim()) {
@@ -1684,40 +1627,11 @@ export default function DrawingLayer({
 
         const touch = e.touches[0];
         if (currentTool === 'select') {
-          // Stop propagation to prevent background panning
-          e.stopPropagation();
-
+          // Mobile: Allow touch event to bubble to FloorPlanCanvas for panning
+          // Don't start dragging - just select the element
           toggleSelection(element.id, 'drawing', false); // No ctrl on touch
-
-          // Start dragging (same as onMouseDown logic)
-          const mouseEvent = new MouseEvent('mousedown', {
-            clientX: touch.clientX,
-            clientY: touch.clientY,
-            button: 0,
-            bubbles: true,
-          });
-          const svgPoint = screenToSVG(mouseEvent.clientX, mouseEvent.clientY);
-          const mouseXmm = pxToMm(svgPoint.x);
-          const mouseYmm = pxToMm(svgPoint.y);
-
-          // Calculate dragOffset
-          let offsetX = 0, offsetY = 0;
-          if (element.type === 'rectangle' || element.type === 'text') {
-            offsetX = element.x - mouseXmm;
-            offsetY = element.y - mouseYmm;
-          } else if (element.type === 'circle') {
-            offsetX = element.cx - mouseXmm;
-            offsetY = element.cy - mouseYmm;
-          } else if (element.type === 'line') {
-            offsetX = element.startX - mouseXmm;
-            offsetY = element.startY - mouseYmm;
-          } else if (element.type === 'path') {
-            offsetX = element.points[0].x - mouseXmm;
-            offsetY = element.points[0].y - mouseYmm;
-          }
-
-          setDragOffset({ x: offsetX, y: offsetY });
-          setIsDraggingElement(true);
+          // Don't call e.stopPropagation() - let it bubble for panning
+          // Don't set isDraggingElement - element dragging only works with mouse
         } else if (currentTool === 'eraser' && (eraserMode === 'universal' || eraserMode === 'shape')) {
           e.stopPropagation();
           deleteElement(element.id);
@@ -1738,7 +1652,6 @@ export default function DrawingLayer({
         const startYPx = mmToPx(element.startY);
         const endXPx = mmToPx(element.endX);
         const endYPx = mmToPx(element.endY);
-
         const lineCenterX = (startXPx + endXPx) / 2;
         const lineCenterY = (startYPx + endYPx) / 2;
         return (
@@ -1759,27 +1672,9 @@ export default function DrawingLayer({
                 e.stopPropagation();
                 toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
                 const svgPoint = screenToSVG(e.clientX, e.clientY);
-                const mouseXmm = pxToMm(svgPoint.x);
-                const mouseYmm = pxToMm(svgPoint.y);
-
-                // dragOffset = element 위치 - 마우스 위치 (가구처럼)
-                let offsetX = 0, offsetY = 0;
-                if (element.type === 'rectangle' || element.type === 'text') {
-                  offsetX = element.x - mouseXmm;
-                  offsetY = element.y - mouseYmm;
-                } else if (element.type === 'circle') {
-                  offsetX = element.cx - mouseXmm;
-                  offsetY = element.cy - mouseYmm;
-                } else if (element.type === 'line') {
-                  offsetX = element.startX - mouseXmm;
-                  offsetY = element.startY - mouseYmm;
-                } else if (element.type === 'path') {
-                  offsetX = element.points[0].x - mouseXmm;
-                  offsetY = element.points[0].y - mouseYmm;
-                }
-
-                setDragOffset({ x: offsetX, y: offsetY });
                 setIsDraggingElement(true);
+                setDragStartPoint(svgPoint);
+                setDragElementOriginal({ ...element });
               } else if (currentTool === 'eraser' && (eraserMode === 'universal' || eraserMode === 'shape')) {
                 e.stopPropagation();
                 deleteElement(element.id);
@@ -1800,7 +1695,6 @@ export default function DrawingLayer({
         const yPx = mmToPx(element.y);
         const widthPx = mmToPx(element.width);
         const heightPx = mmToPx(element.height);
-
         return (
           <rect
             key={element.id}
@@ -1821,27 +1715,9 @@ export default function DrawingLayer({
                 e.stopPropagation();
                 toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
                 const svgPoint = screenToSVG(e.clientX, e.clientY);
-                const mouseXmm = pxToMm(svgPoint.x);
-                const mouseYmm = pxToMm(svgPoint.y);
-
-                // dragOffset = element 위치 - 마우스 위치 (가구처럼)
-                let offsetX = 0, offsetY = 0;
-                if (element.type === 'rectangle' || element.type === 'text') {
-                  offsetX = element.x - mouseXmm;
-                  offsetY = element.y - mouseYmm;
-                } else if (element.type === 'circle') {
-                  offsetX = element.cx - mouseXmm;
-                  offsetY = element.cy - mouseYmm;
-                } else if (element.type === 'line') {
-                  offsetX = element.startX - mouseXmm;
-                  offsetY = element.startY - mouseYmm;
-                } else if (element.type === 'path') {
-                  offsetX = element.points[0].x - mouseXmm;
-                  offsetY = element.points[0].y - mouseYmm;
-                }
-
-                setDragOffset({ x: offsetX, y: offsetY });
                 setIsDraggingElement(true);
+                setDragStartPoint(svgPoint);
+                setDragElementOriginal({ ...element });
               } else if (currentTool === 'eraser' && (eraserMode === 'universal' || eraserMode === 'shape')) {
                 e.stopPropagation();
                 deleteElement(element.id);
@@ -1862,7 +1738,6 @@ export default function DrawingLayer({
         const cyPx = mmToPx(element.cy);
         const rxPx = mmToPx(element.rx);
         const ryPx = mmToPx(element.ry);
-
         return (
           <ellipse
             key={element.id}
@@ -1883,27 +1758,9 @@ export default function DrawingLayer({
                 e.stopPropagation();
                 toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
                 const svgPoint = screenToSVG(e.clientX, e.clientY);
-                const mouseXmm = pxToMm(svgPoint.x);
-                const mouseYmm = pxToMm(svgPoint.y);
-
-                // dragOffset = element 위치 - 마우스 위치 (가구처럼)
-                let offsetX = 0, offsetY = 0;
-                if (element.type === 'rectangle' || element.type === 'text') {
-                  offsetX = element.x - mouseXmm;
-                  offsetY = element.y - mouseYmm;
-                } else if (element.type === 'circle') {
-                  offsetX = element.cx - mouseXmm;
-                  offsetY = element.cy - mouseYmm;
-                } else if (element.type === 'line') {
-                  offsetX = element.startX - mouseXmm;
-                  offsetY = element.startY - mouseYmm;
-                } else if (element.type === 'path') {
-                  offsetX = element.points[0].x - mouseXmm;
-                  offsetY = element.points[0].y - mouseYmm;
-                }
-
-                setDragOffset({ x: offsetX, y: offsetY });
                 setIsDraggingElement(true);
+                setDragStartPoint(svgPoint);
+                setDragElementOriginal({ ...element });
               } else if (currentTool === 'eraser' && (eraserMode === 'universal' || eraserMode === 'shape')) {
                 e.stopPropagation();
                 deleteElement(element.id);
@@ -1922,7 +1779,6 @@ export default function DrawingLayer({
         // mm → px 변환
         const xPx = mmToPx(element.x);
         const yPx = mmToPx(element.y);
-
         return (
           <text
             key={element.id}
@@ -1950,9 +1806,7 @@ export default function DrawingLayer({
                 const svgPoint = screenToSVG(e.clientX, e.clientY);
                 setIsDraggingElement(true);
                 setDragStartPoint(svgPoint);
-                // Get fresh element from store to avoid stale closure
-                const freshElement = useDrawingStore.getState().elements.find(el => el.id === element.id);
-                setDragElementOriginal(freshElement ? { ...freshElement } : { ...element });
+                setDragElementOriginal({ ...element });
               } else if (currentTool === 'text') {
                 // Text tool: edit existing text
                 e.stopPropagation();
@@ -2006,27 +1860,9 @@ export default function DrawingLayer({
                 e.stopPropagation();
                 toggleSelection(element.id, 'drawing', e.ctrlKey || e.metaKey);
                 const svgPoint = screenToSVG(e.clientX, e.clientY);
-                const mouseXmm = pxToMm(svgPoint.x);
-                const mouseYmm = pxToMm(svgPoint.y);
-
-                // dragOffset = element 위치 - 마우스 위치 (가구처럼)
-                let offsetX = 0, offsetY = 0;
-                if (element.type === 'rectangle' || element.type === 'text') {
-                  offsetX = element.x - mouseXmm;
-                  offsetY = element.y - mouseYmm;
-                } else if (element.type === 'circle') {
-                  offsetX = element.cx - mouseXmm;
-                  offsetY = element.cy - mouseYmm;
-                } else if (element.type === 'line') {
-                  offsetX = element.startX - mouseXmm;
-                  offsetY = element.startY - mouseYmm;
-                } else if (element.type === 'path') {
-                  offsetX = element.points[0].x - mouseXmm;
-                  offsetY = element.points[0].y - mouseYmm;
-                }
-
-                setDragOffset({ x: offsetX, y: offsetY });
                 setIsDraggingElement(true);
+                setDragStartPoint(svgPoint);
+                setDragElementOriginal({ ...element });
               } else if (currentTool === 'eraser' && (eraserMode === 'universal' || eraserMode === 'shape')) {
                 e.stopPropagation();
                 deleteElement(element.id);
@@ -2092,14 +1928,15 @@ export default function DrawingLayer({
         }}
         viewBox={`-100 -100 ${canvasWidth + 200} ${canvasHeight + 200}`}
         onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
         onMouseLeave={() => {
           if (!isCurrentlyDrawing) {
             setGuideLines([]);
             setSnapPoints([]);
           }
         }}
-        // Only add touch start handler in drawing mode (not select/calibration)
-        // touchMove and touchEnd are handled by window-level listeners in useEffect
+        // Only add touch handlers in drawing mode (not select/calibration)
         // In select/calibration mode, remove handlers completely so FloorPlanCanvas can handle touches
         {...((!calibrationMode && currentTool !== 'select') ? {
           onTouchStart: (e: React.TouchEvent) => {
@@ -2113,6 +1950,23 @@ export default function DrawingLayer({
               });
               handleMouseDown(mouseEvent as any);
             }
+          },
+          onTouchMove: (e: React.TouchEvent) => {
+            if (e.touches.length === 1) {
+              const touch = e.touches[0];
+              const mouseEvent = new MouseEvent('mousemove', {
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                bubbles: true,
+              });
+              handleMouseMove(mouseEvent as any);
+            }
+          },
+          onTouchEnd: (e: React.TouchEvent) => {
+            const mouseEvent = new MouseEvent('mouseup', {
+              bubbles: true,
+            });
+            handleMouseUp(mouseEvent as any);
           }
         } : {})}
       >

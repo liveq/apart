@@ -186,22 +186,59 @@ export default function MobileLayout() {
         onClose={() => setShowBottomSheet(false)}
         snapPoints={activeTab === 'properties' ? [50, 80] : [70, 90]}
       >
-        <div className="h-full overflow-hidden">
-          {activeTab === 'furniture' && (
-            <div className="h-full">
-              <FurniturePanel isMobile={true} onClose={() => setShowBottomSheet(false)} />
-            </div>
-          )}
-          {activeTab === 'properties' && (
-            <div className="h-full overflow-auto">
-              <PropertiesPanel isMobile={true} />
-            </div>
-          )}
-          {activeTab === 'layers' && (
-            <div className="h-full overflow-auto">
-              <LayerPanel isMobile={true} />
-            </div>
-          )}
+        <div className="h-full flex flex-col">
+          {/* Tab Bar */}
+          <div className="flex border-b border-gray-200 bg-card sticky top-0 z-10">
+            <button
+              onClick={() => setActiveTab('furniture')}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'furniture'
+                  ? 'text-primary border-b-2 border-primary bg-primary/5'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              }`}
+            >
+              🪑 가구
+            </button>
+            <button
+              onClick={() => setActiveTab('properties')}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'properties'
+                  ? 'text-primary border-b-2 border-primary bg-primary/5'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              }`}
+            >
+              ⚙️ 정보
+            </button>
+            <button
+              onClick={() => setActiveTab('layers')}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'layers'
+                  ? 'text-primary border-b-2 border-primary bg-primary/5'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              }`}
+            >
+              📋 레이어
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          <div className="flex-1 overflow-hidden">
+            {activeTab === 'furniture' && (
+              <div className="h-full">
+                <FurniturePanel isMobile={true} onClose={() => setShowBottomSheet(false)} />
+              </div>
+            )}
+            {activeTab === 'properties' && (
+              <div className="h-full overflow-auto">
+                <PropertiesPanel isMobile={true} />
+              </div>
+            )}
+            {activeTab === 'layers' && (
+              <div className="h-full overflow-auto">
+                <LayerPanel isMobile={true} />
+              </div>
+            )}
+          </div>
         </div>
       </BottomSheet>
     </div>

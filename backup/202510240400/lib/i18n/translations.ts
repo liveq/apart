@@ -45,7 +45,7 @@ export const translations = {
     redo: '다시 실행',
 
     // Selected Item
-    selectedItem: '선택 개체 정보',
+    selectedItem: '선택된 가구',
     rotate: '회전',
     duplicate: '복사',
     delete: '삭제',
@@ -288,7 +288,7 @@ export const translations = {
     redo: 'Redo',
 
     // Selected Item
-    selectedItem: 'Object Info',
+    selectedItem: 'Selected Item',
     rotate: 'Rotate',
     duplicate: 'Duplicate',
     delete: 'Delete',
