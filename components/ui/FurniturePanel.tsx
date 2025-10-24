@@ -40,7 +40,7 @@ export default function FurniturePanel({ isMobile = false, onClose }: FurnitureP
     if (!calibratedScale && uploadedImageUrl) {
       toast('⚠️ 정확한 치수를 위해 배율적용을 먼저 설정해주세요', {
         id: 'calibration-warning',
-        duration: 1000,
+        duration: 1500,
         style: {
           background: '#f59e0b',
           color: '#fff',

@@ -87,7 +87,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
     if (!calibratedScale) {
       toast('⚠️ 거리측정을 위해 배율적용을 먼저 설정해주세요', {
         id: 'measurement-calibration-required',
-        duration: 4000,
+        duration: 1500,
         style: {
           background: '#f59e0b',
           color: '#fff',
@@ -144,7 +144,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
       setTimeout(() => {
         toast('⚠️ 정확한 치수를 위해 배율적용을 설정해주세요', {
           id: 'upload-calibration-reminder',
-          duration: 1000,
+          duration: 1500,
           style: {
             background: '#f59e0b',
             color: '#fff',

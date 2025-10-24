@@ -16,6 +16,7 @@ import Image from 'next/image';
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { useKeyboardShortcuts } from '@/lib/hooks/useKeyboardShortcuts';
 import { useIsMobile } from '@/lib/hooks/useMediaQuery';
+import toast from 'react-hot-toast';
 
 interface FloorPlanCanvasProps {
   measurementMode: boolean;
@@ -152,6 +153,35 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
   useEffect(() => {
     recalibrateMeasurements(calibratedScale);
   }, [calibratedScale, recalibrateMeasurements]);
+
+  // Show calibration toast when calibration mode is active
+  useEffect(() => {
+    if (calibrationMode) {
+      const message = calibrationStart
+        ? '📏 두 번째 점을 클릭하세요'
+        : '📏 첫 번째 점을 클릭하세요';
+
+      toast(message, {
+        id: 'calibration-mode-indicator',
+        duration: Infinity, // Keep toast visible until mode is disabled
+        style: {
+          background: '#FF6600',
+          color: '#fff',
+          fontWeight: 'bold',
+          fontSize: '14px',
+          padding: '12px 24px',
+        },
+      });
+    } else {
+      // Dismiss calibration toast when mode is disabled
+      toast.dismiss('calibration-mode-indicator');
+    }
+
+    // Cleanup on unmount
+    return () => {
+      toast.dismiss('calibration-mode-indicator');
+    };
+  }, [calibrationMode, calibrationStart]);
 
   // Calculate touch distance for pinch zoom
   const getTouchDistance = (touches: TouchList): number => {
@@ -881,31 +911,6 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
       }}
     >
       {/* Mode indicators */}
-      {calibrationMode && (
-        <div
-          className="mode-indicator"
-          style={{
-            position: 'absolute',
-            top: '16px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 10,
-            backgroundColor: '#FF6600',
-            color: 'white',
-            padding: '12px 24px',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            boxShadow: '0 4px 12px rgba(255, 102, 0, 0.3)',
-            animation: 'pulse 2s ease-in-out infinite',
-          }}
-        >
-          {calibrationStart
-            ? '📏 두 번째 점을 클릭하세요'
-            : '📏 첫 번째 점을 클릭하세요'}
-        </div>
-      )}
-
       {eraserMode && (
         <div
           className="mode-indicator"
