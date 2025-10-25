@@ -6,7 +6,7 @@ import FurniturePanel from '@/components/ui/FurniturePanel';
 import Toolbar from '@/components/ui/Toolbar';
 import RightSidebar from '@/components/ui/RightSidebar';
 import MobileLayout from '@/components/layouts/MobileLayout';
-import PageTabs from '@/components/ui/PageTabs';
+import FloatingControls from '@/components/ui/FloatingControls';
 import { useIsMobile } from '@/lib/hooks/useMediaQuery';
 
 export default function Home() {
@@ -91,12 +91,13 @@ export default function Home() {
         onToggleEraser={handleToggleEraser}
       />
 
-      <PageTabs />
+      {/* <PageTabs /> */}  {/* 우측 상단 FloatingControls로 이동 */}
 
       <div className="flex flex-1 overflow-hidden">
         <FurniturePanel />
 
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden relative">
+          <FloatingControls />
           <FloorPlanCanvas
             ref={canvasRef}
             measurementMode={measurementMode}
