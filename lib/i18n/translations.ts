@@ -173,7 +173,7 @@ export const translations = {
     eraser: '지우기',
     eraserEnd: '지우기종료',
     clearAllFurniture: '가구 전체 삭제',
-    saveButton: '저장',
+    saveButton: '세이브',
     loadButton: '로드',
 
     // Drawing tools
