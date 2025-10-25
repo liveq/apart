@@ -102,6 +102,8 @@ interface SavedWork {
   uploadedImageUrl?: string | null; // 업로드한 배경 이미지
   showSampleFloorPlan?: boolean; // 샘플 도면 사용 여부
   calibratedScale?: number | null; // 배율 설정
+  pages?: any[]; // 멀티페이지 정보 (PDF 변환 등)
+  currentPageIndex?: number; // 현재 페이지 인덱스
 }
 
 interface DrawingState {
@@ -504,6 +506,8 @@ export const useDrawingStore = create<DrawingState>()(
           let uploadedImageUrl: string | null = null;
           let showSampleFloorPlan: boolean = false;
           let calibratedScale: number | null = null;
+          let pages: any[] = [];
+          let currentPageIndex: number = -1;
           try {
             const { useAppStore } = require('./app-store');
             const appState = useAppStore.getState();
@@ -512,6 +516,9 @@ export const useDrawingStore = create<DrawingState>()(
             uploadedImageUrl = appState.uploadedImageUrl;
             showSampleFloorPlan = appState.showSampleFloorPlan;
             calibratedScale = appState.calibratedScale;
+            // Save pages info (multi-page support)
+            pages = appState.pages || [];
+            currentPageIndex = appState.currentPageIndex;
           } catch (e) {
             console.warn('Could not access app store:', e);
           }
@@ -528,6 +535,8 @@ export const useDrawingStore = create<DrawingState>()(
             uploadedImageUrl: uploadedImageUrl, // Save uploaded image
             showSampleFloorPlan: showSampleFloorPlan, // Save sample floor plan flag
             calibratedScale: calibratedScale, // Save calibration
+            pages: pages.length > 0 ? pages : undefined, // Save pages if exists
+            currentPageIndex: pages.length > 0 ? currentPageIndex : undefined, // Save current page index
           };
 
           const savedWorks = get().getSavedWorks();
@@ -586,6 +595,22 @@ export const useDrawingStore = create<DrawingState>()(
               // Restore calibration
               if (work.calibratedScale !== undefined) {
                 appStore.setCalibratedScale(work.calibratedScale);
+              }
+
+              // Restore pages (multi-page support)
+              if (work.pages && work.pages.length > 0) {
+                const { useAppStore } = require('./app-store');
+                useAppStore.setState({ 
+                  pages: work.pages,
+                  currentPageIndex: work.currentPageIndex !== undefined ? work.currentPageIndex : 0
+                });
+              } else {
+                // Single page mode - clear pages
+                const { useAppStore } = require('./app-store');
+                useAppStore.setState({ 
+                  pages: [],
+                  currentPageIndex: -1
+                });
               }
             } catch (e) {
               console.warn('Could not restore app state:', e);
