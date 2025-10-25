@@ -355,7 +355,6 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
         >
           {t('title')}
         </h1>
-        <span className="text-sm text-muted-foreground hidden lg:block">{t('subtitle')}</span>
       </div>
 
       <div className="flex-1" />
