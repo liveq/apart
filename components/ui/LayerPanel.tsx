@@ -9,6 +9,7 @@ import ConfirmDialog from './ConfirmDialog';
 
 interface LayerPanelProps {
   isMobile?: boolean;
+  onCollapseChange?: (collapsed: boolean) => void;
 }
 
 const COLOR_OPTIONS = [
@@ -23,7 +24,7 @@ const COLOR_OPTIONS = [
   '#64748b', // gray
 ];
 
-export default function LayerPanel({ isMobile = false }: LayerPanelProps) {
+export default function LayerPanel({ isMobile = false, onCollapseChange }: LayerPanelProps) {
   const {
     layers,
     activeLayerId,
@@ -47,6 +48,13 @@ export default function LayerPanel({ isMobile = false }: LayerPanelProps) {
   const { elements, selectedElementId } = useDrawingStore();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Notify parent when collapse state changes
+  useEffect(() => {
+    if (onCollapseChange) {
+      onCollapseChange(isCollapsed);
+    }
+  }, [isCollapsed, onCollapseChange]);
   const [expandedLayers, setExpandedLayers] = useState<Set<string>>(new Set());
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
@@ -251,19 +259,22 @@ export default function LayerPanel({ isMobile = false }: LayerPanelProps) {
   // Check if any element is selected
   const hasElementSelected = furnitureSelectedId !== null || selectedElementId !== null;
 
-  // Desktop layout - Collapsed
+  // Desktop layout - Collapsed (header only)
   if (isCollapsed && !isMobile) {
     return (
-      <div className="w-12 bg-card border-r border-border flex flex-col items-center py-4">
-        <button
-          onClick={() => setIsCollapsed(false)}
-          className="p-2 hover:bg-accent rounded"
-          title="Layers"
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M5 3l10 7-10 7V3z" />
-          </svg>
-        </button>
+      <div className="w-full bg-card border-r border-border flex flex-col">
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <h2 className="font-bold text-lg">Layers</h2>
+          <button
+            onClick={() => setIsCollapsed(false)}
+            className="p-1 hover:bg-accent rounded"
+            title="펼치기"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M5 7l5 5 5-5H5z" />
+            </svg>
+          </button>
+        </div>
       </div>
     );
   }
@@ -278,10 +289,10 @@ export default function LayerPanel({ isMobile = false }: LayerPanelProps) {
           <button
             onClick={() => setIsCollapsed(true)}
             className="p-1 hover:bg-accent rounded"
-            title="Close"
+            title="접기"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M15 3L5 10l10 7V3z" />
+              <path d="M15 13l-5-5-5 5h10z" />
             </svg>
           </button>
         </div>

@@ -97,7 +97,7 @@ export default function Home() {
         <FurniturePanel />
 
         <main className="flex-1 overflow-hidden relative">
-          <FloatingControls />
+          {/* <FloatingControls /> */}  {/* 페이지 네비게이션이 왼쪽 줌 컨트롤로 이동됨 */}
           <FloorPlanCanvas
             ref={canvasRef}
             measurementMode={measurementMode}

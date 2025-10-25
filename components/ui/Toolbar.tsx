@@ -120,30 +120,108 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    // Check if file is a PDF
-    const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    // Check if any PDF file exists
+    const pdfFile = Array.from(files).find(file =>
+      file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+    );
 
-    if (isPDF) {
-      // PDF 파일 - 모달 표시
-      setPdfFile(file);
-      // Reset file input
+    if (pdfFile) {
+      // PDF 파일이 있으면 PDF만 처리 (한 번에 하나만)
+      if (files.length > 1) {
+        toast.error('PDF는 한 번에 하나만 업로드 가능합니다');
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+      setPdfFile(pdfFile);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
       return;
     }
 
-    // Check if file is an image
-    if (!file.type.startsWith('image/')) {
+    // 모든 파일이 이미지인지 확인
+    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
       toast.error('이미지 또는 PDF 파일만 업로드 가능합니다');
       return;
     }
 
-    // 이미지 파일 처리 (기존 로직 그대로)
-    processImageFile(file);
+    if (imageFiles.length !== files.length) {
+      toast.error('이미지와 PDF를 함께 업로드할 수 없습니다');
+      return;
+    }
+
+    // 이미지 파일 처리
+    processMultipleImageFiles(imageFiles);
+  };
+
+  const processMultipleImageFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+
+    // 첫 번째 이미지만 업로드 이미지로 설정 (기존 동작)
+    if (files.length === 1) {
+      processImageFile(files[0]);
+      return;
+    }
+
+    // 여러 이미지를 페이지로 추가
+    const imageUrls: string[] = [];
+
+    try {
+      // 모든 이미지를 base64로 변환
+      for (const file of files) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        imageUrls.push(base64);
+      }
+
+      // 기존 데이터 초기화
+      setCalibratedScale(null);
+      clearAll();
+      setShowSampleFloorPlan(false);
+      setUploadedImageUrl(null);
+
+      // 각 이미지를 페이지로 추가
+      const newPages = imageUrls.map((url, index) => ({
+        id: `page-${Date.now()}-${index}`,
+        name: files[index].name,
+        imageUrl: url,
+      }));
+
+      addPages(newPages);
+      setCurrentPageIndex(0);
+
+      toast.success(`${files.length}개의 이미지가 페이지로 추가되었습니다`);
+
+      // 배율 설정 안내
+      setTimeout(() => {
+        toast('⚠️ 정확한 치수를 위해 배율적용을 설정해주세요', {
+          id: 'upload-calibration-reminder',
+          duration: 1500,
+          style: {
+            background: '#f59e0b',
+            color: '#fff',
+          },
+        });
+      }, 1000);
+    } catch (error) {
+      console.error('Image upload error:', error);
+      toast.error('이미지 업로드 중 오류가 발생했습니다');
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const processImageFile = (file: File) => {
@@ -456,6 +534,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
           ref={fileInputRef}
           type="file"
           accept="image/*,application/pdf"
+          multiple
           onChange={handleImageUpload}
           style={{ display: 'none' }}
         />

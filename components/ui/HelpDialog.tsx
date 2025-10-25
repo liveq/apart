@@ -87,6 +87,76 @@ export default function HelpDialog({ open, onClose }: HelpDialogProps) {
             </div>
           </section>
 
+          {/* 도면 업로드 */}
+          <section>
+            <h3 className="text-lg font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">
+              도면 업로드
+            </h3>
+            <div className="space-y-2 text-sm text-gray-700 leading-relaxed">
+              <div className="bg-blue-50 border-l-4 border-blue-400 p-3 mb-3">
+                <p className="font-semibold text-blue-900">
+                  ✨ 다중 업로드 및 PDF 자동 변환 지원
+                </p>
+                <p className="text-blue-800 text-xs mt-1">
+                  * 여러 이미지를 한번에 업로드하거나 PDF를 자동으로 페이지별 이미지로 변환할 수 있습니다.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-semibold text-gray-900">이미지 다중 업로드</p>
+                <p className="mt-1">
+                  • 여러 장의 도면 이미지(JPG, PNG 등)를 한번에 선택하여 업로드할 수 있습니다.<br/>
+                  • 파일 선택 창에서 <kbd className="px-2 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">Ctrl</kbd> 또는 <kbd className="px-2 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">Shift</kbd>를 눌러 여러 파일을 선택합니다.<br/>
+                  • 선택한 모든 이미지가 각각 별도 페이지로 추가됩니다.<br/>
+                  • 여러 층의 도면이나 전/후 비교용 도면을 업로드할 때 편리합니다.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-semibold text-gray-900 mt-3">PDF 자동 변환</p>
+                <p className="mt-1">
+                  • PDF 파일을 업로드하면 자동으로 각 페이지가 JPEG 이미지로 변환됩니다.<br/>
+                  • 변환 옵션 창에서 원하는 페이지를 선택할 수 있습니다 (전체 선택 가능).<br/>
+                  • 해상도(DPI)를 선택하여 이미지 품질을 조절할 수 있습니다:
+                  <ul className="ml-6 mt-1 list-disc">
+                    <li><strong>72 DPI:</strong> 빠른 로딩, 기본 품질 (권장)</li>
+                    <li><strong>150 DPI:</strong> 표준 품질</li>
+                    <li><strong>300 DPI:</strong> 고품질 (큰 파일 크기)</li>
+                  </ul>
+                  • 변환된 페이지들은 자동으로 페이지 목록에 추가됩니다.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-semibold text-gray-900 mt-3">페이지 네비게이션</p>
+                <p className="mt-1">
+                  • 우측 줌 컨트롤 하단의 페이지 버튼으로 페이지 간 이동이 가능합니다.<br/>
+                  • <strong>◀/▶ 버튼:</strong> 이전/다음 페이지로 이동<br/>
+                  • <strong>페이지 번호 버튼:</strong> 클릭하면 전체 페이지 썸네일 미리보기가 표시됩니다.<br/>
+                  &nbsp;&nbsp;- 마우스를 올리면 그리드 아이콘(⊞)으로 변경<br/>
+                  &nbsp;&nbsp;- 썸네일을 클릭하여 원하는 페이지로 바로 이동<br/>
+                  &nbsp;&nbsp;- 패널 내에서 스크롤하여 모든 페이지 확인 가능
+                </p>
+              </div>
+
+              <div className="bg-amber-50 border-l-4 border-amber-400 p-3 mt-3">
+                <p className="text-xs text-amber-900">
+                  <strong>참고:</strong> 각 페이지는 독립적으로 배율 적용이 필요합니다.<br/>
+                  여러 페이지를 업로드한 후, 각 페이지마다 배율적용 도구를 사용하여 정확한 치수를 설정하세요.
+                </p>
+              </div>
+
+              <div className="bg-gray-100 border-l-4 border-gray-400 p-3 mt-3">
+                <p className="text-xs text-gray-700">
+                  <strong>활용 예시:</strong><br/>
+                  • 아파트 평면도 PDF (전용면적 84㎡) → 자동으로 모든 층의 도면이 페이지로 분리<br/>
+                  • 리모델링 전/후 사진 여러 장 → 각 사진을 페이지로 추가하여 비교<br/>
+                  • 건축 도면 세트 (평면도, 입면도, 단면도) → 한번에 업로드하여 통합 관리
+                </p>
+              </div>
+            </div>
+          </section>
+
           {/* 키보드 단축키 */}
           <section>
             <h3 className="text-lg font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">

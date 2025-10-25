@@ -33,7 +33,7 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
   const isMobile = useIsMobile();
   const { furniture, addMeasurement, recalibrateMeasurements, clearAll } = useFurnitureStore();
   const { clearSelection } = useSelectionStore();
-  const { setViewport, calibratedScale, setCalibratedScale, uploadedImageUrl, showSampleFloorPlan, setShowSampleFloorPlan, setUploadedImageUrl, setShowCanvasSizeDialog, pages, currentPageIndex, getCurrentPage } = useAppStore();
+  const { setViewport, calibratedScale, setCalibratedScale, uploadedImageUrl, showSampleFloorPlan, setShowSampleFloorPlan, setUploadedImageUrl, setShowCanvasSizeDialog, pages, currentPageIndex, setCurrentPageIndex, getCurrentPage } = useAppStore();
   const { drawingMode, setDrawingMode, canvasWidth: drawingCanvasWidth, canvasHeight: drawingCanvasHeight, currentTool, eraserMode: drawingEraserMode, clearAllElements, toolbarCollapsed } = useDrawingStore();
   const [displayScale, setDisplayScale] = useState(0.05); // 캔버스 표시용 scale (항상 자동 계산)
   const [measurementStart, setMeasurementStart] = useState<{ x: number; y: number } | null>(null);
@@ -53,6 +53,7 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
 
   // Touch zoom and pan state
   const [zoom, setZoom] = useState(1);
+  const [showPagePanel, setShowPagePanel] = useState(false);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
@@ -477,6 +478,15 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
 
   // Mouse wheel zoom and pan (will be added via useEffect)
   const handleWheel = (e: WheelEvent) => {
+    // Check if wheel event is happening inside the page panel
+    // If so, don't prevent it - allow panel scrolling
+    const target = e.target as HTMLElement;
+    const pagePanel = target.closest('.page-panel-scroll');
+    if (pagePanel) {
+      // Allow scrolling inside the panel
+      return;
+    }
+
     e.preventDefault();
 
     // 가로 휠 (Shift + 휠 또는 가로 휠) → 좌우 팬
@@ -1052,7 +1062,128 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
         <div className="w-10 h-10 bg-white rounded-lg shadow-md flex items-center justify-center text-xs font-bold text-gray-900 border border-border">
           {Math.round(zoom * 100)}%
         </div>
+
+        {/* 페이지 네비게이션 (페이지가 있을 때만) */}
+        {pages.length > 0 && (
+          <>
+            <div className="w-10 h-1 border-t border-gray-300 my-1" />
+            <button
+              onClick={() => {
+                if (currentPageIndex > 0) {
+                  setCurrentPageIndex(currentPageIndex - 1);
+                }
+              }}
+              disabled={currentPageIndex === 0}
+              className="w-10 h-10 bg-white hover:bg-gray-100 rounded-lg shadow-md flex items-center justify-center text-gray-900 transition-colors border border-border disabled:opacity-30 disabled:cursor-not-allowed"
+              title="이전 페이지"
+            >
+              ◀
+            </button>
+            <button
+              onClick={() => setShowPagePanel(!showPagePanel)}
+              className="w-10 h-10 bg-white hover:bg-gray-100 rounded-lg shadow-md flex items-center justify-center text-gray-900 transition-colors border border-border group relative"
+              title="페이지 미리보기"
+            >
+              <span className="group-hover:hidden flex flex-col items-center justify-center text-[10px] font-medium leading-tight">
+                <span>{currentPageIndex + 1}</span>
+                <span className="text-gray-400">/</span>
+                <span>{pages.length}</span>
+              </span>
+              <span className="hidden group-hover:flex text-xl">⊞</span>
+            </button>
+            <button
+              onClick={() => {
+                if (currentPageIndex < pages.length - 1) {
+                  setCurrentPageIndex(currentPageIndex + 1);
+                }
+              }}
+              disabled={currentPageIndex === pages.length - 1}
+              className="w-10 h-10 bg-white hover:bg-gray-100 rounded-lg shadow-md flex items-center justify-center text-gray-900 transition-colors border border-border disabled:opacity-30 disabled:cursor-not-allowed"
+              title="다음 페이지"
+            >
+              ▶
+            </button>
+          </>
+        )}
       </div>
+
+      {/* 썸네일 미리보기 패널 */}
+      {pages.length > 0 && showPagePanel && (
+        <>
+          {/* 배경 오버레이 */}
+          <div
+            className="fixed inset-0 bg-black/20"
+            style={{ zIndex: 9998, pointerEvents: 'auto' }}
+            onClick={() => setShowPagePanel(false)}
+          />
+
+          {/* 패널 - 우측 버튼 왼쪽에 표시 */}
+          <div
+            className="page-panel-scroll fixed bg-card border border-border rounded-lg shadow-2xl p-4 max-w-md w-80 max-h-[calc(100vh-6rem)] overflow-y-auto"
+            style={{
+              top: toolbarCollapsed ? '16px' : '110px',
+              right: '72px', // 버튼 너비(40px) + 버튼과 패널 간격(32px)
+              transition: 'top 0.3s ease',
+              zIndex: 9999,
+            }}
+          >
+            {/* 헤더 */}
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
+              <h3 className="font-bold text-lg">페이지</h3>
+              <span className="text-sm font-medium">
+                {currentPageIndex + 1} / {pages.length}
+              </span>
+            </div>
+
+            {/* 페이지 목록 (썸네일 그리드) */}
+            <div className="grid grid-cols-2 gap-3">
+              {pages.map((page, index) => (
+                <button
+                  key={page.id}
+                  onClick={() => {
+                    setCurrentPageIndex(index);
+                    setShowPagePanel(false);
+                  }}
+                  className={`
+                    relative rounded-lg overflow-hidden border-2 transition-all
+                    ${index === currentPageIndex
+                      ? 'border-primary ring-2 ring-primary/20'
+                      : 'border-border hover:border-accent'
+                    }
+                  `}
+                >
+                  {/* 썸네일 이미지 */}
+                  <div className="aspect-[4/3] bg-secondary">
+                    <img
+                      src={page.imageUrl}
+                      alt={page.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+
+                  {/* 페이지 정보 */}
+                  <div className="p-2 bg-card/95 text-left">
+                    <p className="text-xs font-medium truncate">
+                      {page.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {index + 1} / {pages.length}
+                    </p>
+                  </div>
+
+                  {/* 현재 페이지 표시 */}
+                  {index === currentPageIndex && (
+                    <div className="absolute top-2 right-2 bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-bold">
+                      현재
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
       <div
         id="floor-plan-canvas-inner"
         data-zoom={zoom}

@@ -11,9 +11,10 @@ import { furnitureTemplates } from '@/data/furniture-templates';
 
 interface PropertiesPanelProps {
   isMobile?: boolean;
+  onCollapseChange?: (collapsed: boolean) => void;
 }
 
-export default function PropertiesPanel({ isMobile = false }: PropertiesPanelProps) {
+export default function PropertiesPanel({ isMobile = false, onCollapseChange }: PropertiesPanelProps) {
   const { t, language } = useTranslation();
   const { furniture, selectedId: furnitureSelectedId, updateFurniture, deleteFurniture, duplicateFurniture, rotateFurniture } = useFurnitureStore();
   const { elements, selectedElementId, updateElement, deleteElement, showDimensionLabels, setShowDimensionLabels, rotateElement, duplicateElement } = useDrawingStore();
@@ -21,6 +22,15 @@ export default function PropertiesPanel({ isMobile = false }: PropertiesPanelPro
   const { selectedItems, getSelectedCount, getSelectedFurnitureIds, getSelectedDrawingIds } = useSelectionStore();
   const selectedCount = getSelectedCount();
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Handle collapse toggle
+  const handleCollapseToggle = (collapsed: boolean) => {
+    setIsCollapsed(collapsed);
+    if (onCollapseChange) {
+      onCollapseChange(collapsed);
+    }
+  };
+
   const [showAllFurnitureColors, setShowAllFurnitureColors] = useState(false);
   const [showAllTextColors, setShowAllTextColors] = useState(false);
   const [showAllStrokeColors, setShowAllStrokeColors] = useState(false);
@@ -243,9 +253,9 @@ export default function PropertiesPanel({ isMobile = false }: PropertiesPanelPro
   // Desktop layout - Collapsed
   if (isCollapsed) {
     return (
-      <div className="w-12 bg-card border-l border-border flex flex-col items-center py-4">
+      <div className="w-full h-full bg-card flex flex-col items-center justify-center py-4">
         <button
-          onClick={() => setIsCollapsed(false)}
+          onClick={() => handleCollapseToggle(false)}
           className="p-2 hover:bg-accent rounded"
           title={t('propertiesPanel')}
         >
@@ -259,11 +269,11 @@ export default function PropertiesPanel({ isMobile = false }: PropertiesPanelPro
 
   // Desktop layout - Content
   return (
-    <div className="w-64 md:w-72 bg-card border-l border-border flex flex-col overflow-hidden">
+    <div className="w-full h-full bg-card flex flex-col overflow-hidden">
       <div className="p-4 border-b border-border flex items-center justify-between">
         <h2 className="font-bold text-lg">{t('propertiesPanel')}</h2>
         <button
-          onClick={() => setIsCollapsed(true)}
+          onClick={() => handleCollapseToggle(true)}
           className="p-1 hover:bg-accent rounded"
           title={t('close')}
         >

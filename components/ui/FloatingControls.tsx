@@ -2,26 +2,13 @@
 
 import { useState } from 'react';
 import { useAppStore } from '@/lib/stores/app-store';
-import { ZoomIn, ZoomOut, Maximize2, ChevronLeft, ChevronRight, Grid3x3 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Grid3x3 } from 'lucide-react';
 
 export default function FloatingControls() {
-  const { pages, currentPageIndex, setCurrentPageIndex, viewport, setViewport } = useAppStore();
+  const { pages, currentPageIndex, setCurrentPageIndex } = useAppStore();
   const [showPagePanel, setShowPagePanel] = useState(false);
 
   const hasPages = pages.length > 0;
-
-  // Zoom functions
-  const handleZoomIn = () => {
-    setViewport({ zoom: Math.min(viewport.zoom * 1.2, 5) });
-  };
-
-  const handleZoomOut = () => {
-    setViewport({ zoom: Math.max(viewport.zoom / 1.2, 0.1) });
-  };
-
-  const handleFitScreen = () => {
-    setViewport({ zoom: 1, panX: 0, panY: 0 });
-  };
 
   // Page navigation
   const goToPrevPage = () => {
@@ -40,31 +27,6 @@ export default function FloatingControls() {
     <>
       {/* 우측 상단 플로팅 버튼 */}
       <div className="fixed top-20 right-4 z-40 flex flex-col gap-2">
-        {/* 뷰 컨트롤 */}
-        <div className="bg-card border border-border rounded-lg shadow-lg overflow-hidden">
-          <button
-            onClick={handleZoomIn}
-            className="w-10 h-10 flex items-center justify-center hover:bg-accent transition-colors border-b border-border"
-            title="확대"
-          >
-            <ZoomIn size={18} />
-          </button>
-          <button
-            onClick={handleZoomOut}
-            className="w-10 h-10 flex items-center justify-center hover:bg-accent transition-colors border-b border-border"
-            title="축소"
-          >
-            <ZoomOut size={18} />
-          </button>
-          <button
-            onClick={handleFitScreen}
-            className="w-10 h-10 flex items-center justify-center hover:bg-accent transition-colors"
-            title="화면 맞춤"
-          >
-            <Maximize2 size={18} />
-          </button>
-        </div>
-
         {/* 페이지 네비게이션 버튼 (페이지가 있을 때만) */}
         {hasPages && (
           <div className="bg-card border border-border rounded-lg shadow-lg overflow-hidden">

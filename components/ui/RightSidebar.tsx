@@ -11,6 +11,8 @@ const MIN_PANEL_HEIGHT = 150; // Minimum height in pixels
 export default function RightSidebar() {
   const [splitRatio, setSplitRatio] = useState(DEFAULT_SPLIT_RATIO);
   const [isDragging, setIsDragging] = useState(false);
+  const [isLayerPanelCollapsed, setIsLayerPanelCollapsed] = useState(false);
+  const [isPropertiesPanelCollapsed, setIsPropertiesPanelCollapsed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragStartY = useRef<number>(0);
   const dragStartRatio = useRef<number>(0);
@@ -80,46 +82,63 @@ export default function RightSidebar() {
     };
   }, [isDragging]);
 
+  // When properties panel is collapsed, entire sidebar becomes narrow (48px)
+  // No need for conditional rendering - just control the width
+  const sidebarWidth = isPropertiesPanelCollapsed ? 'w-12' : '';
+
+  // Calculate heights based on layer panel collapse state
+  const layerPanelCollapsedHeight = 60; // Header height when collapsed
+  const propertiesPanelHeight = isLayerPanelCollapsed
+    ? `calc(100% - ${layerPanelCollapsedHeight}px)`
+    : `${splitRatio}%`;
+  const layerPanelHeight = isLayerPanelCollapsed
+    ? `${layerPanelCollapsedHeight}px`
+    : `${100 - splitRatio}%`;
+
   return (
     <div
       ref={containerRef}
-      className="h-full flex flex-col bg-card border-l border-border"
+      className={`h-full flex flex-col bg-card border-l border-border ${sidebarWidth}`}
       style={{ userSelect: isDragging ? 'none' : 'auto' }}
     >
       {/* PropertiesPanel - Top Section */}
       <div
         style={{
-          height: `${splitRatio}%`,
-          minHeight: `${MIN_PANEL_HEIGHT}px`
+          height: isPropertiesPanelCollapsed ? '100%' : propertiesPanelHeight,
+          minHeight: isLayerPanelCollapsed ? 'auto' : `${MIN_PANEL_HEIGHT}px`,
+          display: isPropertiesPanelCollapsed ? 'flex' : undefined
         }}
         className="overflow-hidden flex flex-col"
       >
-        <PropertiesPanel />
+        <PropertiesPanel onCollapseChange={setIsPropertiesPanelCollapsed} />
       </div>
 
-      {/* Resize Bar */}
-      <div
-        className={`relative h-[3px] bg-border hover:bg-gray-400 cursor-row-resize flex-shrink-0 transition-colors ${
-          isDragging ? 'bg-gray-400' : ''
-        }`}
-        onMouseDown={handleMouseDown}
-        style={{ cursor: 'row-resize' }}
-      >
-        {/* Optional: Add a grab indicator */}
-        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none">
-          <div className="w-8 h-1 bg-gray-500 rounded-full opacity-0 hover:opacity-100 transition-opacity" />
+      {/* Resize Bar - Hidden when layer panel is collapsed OR properties panel is collapsed */}
+      {!isLayerPanelCollapsed && !isPropertiesPanelCollapsed && (
+        <div
+          className={`relative h-[3px] bg-border hover:bg-gray-400 cursor-row-resize flex-shrink-0 transition-colors ${
+            isDragging ? 'bg-gray-400' : ''
+          }`}
+          onMouseDown={handleMouseDown}
+          style={{ cursor: 'row-resize' }}
+        >
+          {/* Optional: Add a grab indicator */}
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none">
+            <div className="w-8 h-1 bg-gray-500 rounded-full opacity-0 hover:opacity-100 transition-opacity" />
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* LayerPanel - Bottom Section */}
+      {/* LayerPanel - Bottom Section - Visually hidden when properties panel is collapsed but keep mounted to preserve state */}
       <div
         style={{
-          height: `${100 - splitRatio}%`,
-          minHeight: `${MIN_PANEL_HEIGHT}px`
+          height: layerPanelHeight,
+          minHeight: isLayerPanelCollapsed ? 'auto' : `${MIN_PANEL_HEIGHT}px`,
+          display: isPropertiesPanelCollapsed ? 'none' : 'flex'
         }}
-        className="overflow-hidden flex flex-col"
+        className="overflow-hidden flex-col"
       >
-        <LayerPanel />
+        <LayerPanel onCollapseChange={setIsLayerPanelCollapsed} />
       </div>
     </div>
   );
