@@ -33,7 +33,7 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
   const isMobile = useIsMobile();
   const { furniture, addMeasurement, recalibrateMeasurements, clearAll } = useFurnitureStore();
   const { clearSelection } = useSelectionStore();
-  const { setViewport, calibratedScale, setCalibratedScale, uploadedImageUrl, showSampleFloorPlan, setShowSampleFloorPlan, setUploadedImageUrl, setShowCanvasSizeDialog, pages, currentPageIndex, setCurrentPageIndex, getCurrentPage } = useAppStore();
+  const { setViewport, calibratedScale, setCalibratedScale, uploadedImageUrl, showSampleFloorPlan, setShowSampleFloorPlan, setUploadedImageUrl, setShowCanvasSizeDialog, pages, currentPageIndex, setCurrentPageIndex, getCurrentPage, triggerCalibrationPulse } = useAppStore();
   const { drawingMode, setDrawingMode, canvasWidth: drawingCanvasWidth, canvasHeight: drawingCanvasHeight, currentTool, eraserMode: drawingEraserMode, clearAllElements, toolbarCollapsed } = useDrawingStore();
   const [displayScale, setDisplayScale] = useState(0.05); // 캔버스 표시용 scale (항상 자동 계산)
   const [measurementStart, setMeasurementStart] = useState<{ x: number; y: number } | null>(null);
@@ -920,6 +920,16 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
     clearAllElements(); // Clear drawing elements when loading sample
     // Enable drawing mode automatically when sample floor plan is loaded
     setDrawingMode(true);
+
+    // Show calibration toast message
+    toast('⚠️ 정확한 치수를 위해 배율적용을 설정해주세요', {
+      duration: 5000,
+      position: 'top-center',
+      icon: '📐',
+    });
+
+    // Trigger calibration button pulse
+    triggerCalibrationPulse();
   };
 
   const handleDirectDraw = () => {

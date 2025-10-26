@@ -41,8 +41,12 @@ export default function MobileToolbar({
     setUploadedImageUrl,
     setShowSampleFloorPlan,
     showCanvasSizeDialog,
-    setShowCanvasSizeDialog
-  , pages, addPages, setCurrentPageIndex } = useAppStore();
+    setShowCanvasSizeDialog,
+    pages,
+    addPages,
+    setCurrentPageIndex,
+    triggerCalibrationPulse
+  } = useAppStore();
   const {
     snapEnabled,
     setSnapEnabled,
@@ -255,6 +259,7 @@ export default function MobileToolbar({
       setUploadedImageUrl(base64String);
 
       toast.success(t('imageUploadedSuccess'));
+      triggerCalibrationPulse(); // Trigger pulse animation on calibration button
       setShowMenuSheet(false);
     };
 
@@ -681,6 +686,7 @@ export default function MobileToolbar({
               clearAllElements();
 
               toast.success(`${pages.length}개 페이지가 로드되었습니다`);
+              triggerCalibrationPulse(); // Trigger pulse animation on calibration button
             });
 
             setPdfFile(null);

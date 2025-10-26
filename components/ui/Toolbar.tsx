@@ -26,7 +26,7 @@ interface ToolbarProps {
 
 export default function Toolbar({ canvasRef, measurementMode, onToggleMeasurement, calibrationMode, onToggleCalibration, eraserMode, onToggleEraser }: ToolbarProps) {
   const { t } = useTranslation();
-  const { language: currentLang, setLanguage, calibratedScale, setCalibratedScale, uploadedImageUrl, setUploadedImageUrl, showSampleFloorPlan, setShowSampleFloorPlan, showCanvasSizeDialog, setShowCanvasSizeDialog, pages, addPages, setCurrentPageIndex } = useAppStore();
+  const { language: currentLang, setLanguage, calibratedScale, setCalibratedScale, uploadedImageUrl, setUploadedImageUrl, showSampleFloorPlan, setShowSampleFloorPlan, showCanvasSizeDialog, setShowCanvasSizeDialog, pages, addPages, setCurrentPageIndex, showCalibrationPulse, triggerCalibrationPulse } = useAppStore();
   const { snapEnabled, setSnapEnabled, snapSize, setSnapSize, undo, redo, clearAll } = useFurnitureStore();
   const { setDrawingMode, setCanvasSize, clearAllElements, drawingMode, saveCurrentWork, currentTool, eraserMode: currentEraserMode, toolbarCollapsed, setToolbarCollapsed } = useDrawingStore();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -212,6 +212,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
             color: '#fff',
           },
         });
+        triggerCalibrationPulse();
       }, 1000);
     } catch (error) {
       console.error('Image upload error:', error);
@@ -250,6 +251,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
             color: '#fff',
           },
         });
+        triggerCalibrationPulse();
       }, 1000);
     };
 
@@ -651,7 +653,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
               ? 'bg-amber-600 text-white hover:bg-amber-700 hover:ring-2 hover:ring-amber-300 shadow-lg'
               : calibratedScale
               ? 'bg-amber-500 text-white hover:bg-amber-600 hover:ring-2 hover:ring-amber-200'
-              : 'bg-white text-amber-600 hover:bg-amber-50 hover:ring-2 hover:ring-amber-200 border border-amber-200')
+              : `bg-white text-amber-600 hover:bg-amber-50 hover:ring-2 hover:ring-amber-200 border border-amber-200 ${showCalibrationPulse ? 'calibration-pulse' : ''}`)
           }
           title={calibratedScale ? `${t('calibrated')} (${calibratedScale.toFixed(5)})` : t('calibrationTooltip')}
         >

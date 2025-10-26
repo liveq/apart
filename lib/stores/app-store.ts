@@ -40,6 +40,7 @@ interface AppState {
 
   // Scale calibration (not persisted - resets on refresh)
   calibratedScale: number | null; // px/mm ratio, null = auto-calculate
+  showCalibrationPulse: boolean; // Show pulse animation on calibration button
 
   // Viewport state (not persisted)
   viewport: {
@@ -62,6 +63,7 @@ interface AppState {
   setCalibratedScale: (scale: number | null) => void;
   setShowSampleFloorPlan: (show: boolean) => void;
   setShowCanvasSizeDialog: (show: boolean) => void;
+  triggerCalibrationPulse: () => void;
 
   // Multi-page actions
   addPages: (pages: Page[]) => void; // Add multiple pages at once
@@ -91,6 +93,7 @@ export const useAppStore = create<AppState>()(
         savedLayouts: [],
         currentLayoutId: null,
         calibratedScale: null,
+        showCalibrationPulse: false,
         showSampleFloorPlan: false, // Start with no floor plan shown
         showCanvasSizeDialog: false,
 
@@ -147,6 +150,13 @@ export const useAppStore = create<AppState>()(
 
         setShowCanvasSizeDialog: (show) => {
           set({ showCanvasSizeDialog: show });
+        },
+
+        triggerCalibrationPulse: () => {
+          set({ showCalibrationPulse: true });
+          setTimeout(() => {
+            set({ showCalibrationPulse: false });
+          }, 5000);
         },
 
         saveLayout: (name, furniture) => {
