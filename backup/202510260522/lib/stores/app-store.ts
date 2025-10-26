@@ -12,13 +12,6 @@ interface SavedLayout {
   furniture: FurnitureItem[];
   createdAt: number;
   updatedAt: number;
-  // Additional data to restore full state
-  uploadedImageUrl?: string | null;
-  showSampleFloorPlan?: boolean;
-  calibratedScale?: number | null;
-  pages?: Page[];
-  currentPageIndex?: number;
-  elements?: any[]; // Drawing elements if any
 }
 
 interface AppState {
@@ -150,16 +143,7 @@ export const useAppStore = create<AppState>()(
         },
 
         saveLayout: (name, furniture) => {
-          const { currentLayoutId, savedLayouts, uploadedImageUrl, showSampleFloorPlan, calibratedScale, pages, currentPageIndex } = get();
-
-          // Get drawing elements if any
-          let elements: any[] = [];
-          try {
-            const { useDrawingStore } = require('./drawing-store');
-            elements = useDrawingStore.getState().elements || [];
-          } catch (e) {
-            // Drawing store not available
-          }
+          const { currentLayoutId, savedLayouts } = get();
 
           if (currentLayoutId) {
             // Update existing layout
@@ -170,12 +154,6 @@ export const useAppStore = create<AppState>()(
                       ...layout,
                       name,
                       furniture: JSON.parse(JSON.stringify(furniture)),
-                      uploadedImageUrl,
-                      showSampleFloorPlan,
-                      calibratedScale,
-                      pages: pages.length > 0 ? JSON.parse(JSON.stringify(pages)) : undefined,
-                      currentPageIndex: pages.length > 0 ? currentPageIndex : undefined,
-                      elements: elements.length > 0 ? JSON.parse(JSON.stringify(elements)) : undefined,
                       updatedAt: Date.now(),
                     }
                   : layout
@@ -187,12 +165,6 @@ export const useAppStore = create<AppState>()(
               id: `layout-${Date.now()}`,
               name,
               furniture: JSON.parse(JSON.stringify(furniture)),
-              uploadedImageUrl,
-              showSampleFloorPlan,
-              calibratedScale,
-              pages: pages.length > 0 ? JSON.parse(JSON.stringify(pages)) : undefined,
-              currentPageIndex: pages.length > 0 ? currentPageIndex : undefined,
-              elements: elements.length > 0 ? JSON.parse(JSON.stringify(elements)) : undefined,
               createdAt: Date.now(),
               updatedAt: Date.now(),
             };
@@ -237,70 +209,9 @@ export const useAppStore = create<AppState>()(
         },
 
         setCurrentPageIndex: (index) => {
-          const { pages, currentPageIndex } = get();
-          if (index >= 0 && index < pages.length && index !== currentPageIndex) {
-            // Save current page's furniture and drawings before switching
-            if (currentPageIndex >= 0 && currentPageIndex < pages.length) {
-              try {
-                const { useFurnitureStore } = require('./furniture-store');
-                const { useDrawingStore } = require('./drawing-store');
-
-                const currentFurniture = useFurnitureStore.getState().furniture;
-                const currentElements = useDrawingStore.getState().elements;
-
-                // Update current page with current furniture and drawings
-                const updatedPages = [...pages];
-                updatedPages[currentPageIndex] = {
-                  ...updatedPages[currentPageIndex],
-                  furniture: JSON.parse(JSON.stringify(currentFurniture)),
-                  drawings: JSON.parse(JSON.stringify(currentElements)),
-                };
-
-                set({ pages: updatedPages });
-              } catch (e) {
-                console.warn('Could not save current page state:', e);
-              }
-            }
-
-            // Switch to new page
+          const { pages } = get();
+          if (index >= 0 && index < pages.length) {
             set({ currentPageIndex: index });
-
-            // Load new page's furniture and drawings
-            try {
-              const { useFurnitureStore } = require('./furniture-store');
-              const { useDrawingStore } = require('./drawing-store');
-
-              const newPage = pages[index];
-
-              // Clear current furniture and drawings
-              useFurnitureStore.getState().clearAll();
-              useDrawingStore.setState({ elements: [] });
-
-              // Load new page's furniture
-              if (newPage.furniture && newPage.furniture.length > 0) {
-                newPage.furniture.forEach((item: any) => {
-                  useFurnitureStore.getState().addFurniture({
-                    templateId: item.templateId,
-                    name: item.name,
-                    x: item.x,
-                    y: item.y,
-                    width: item.width,
-                    depth: item.depth || item.height,
-                    height: item.height,
-                    rotation: item.rotation,
-                    color: item.color,
-                    category: item.category,
-                  });
-                });
-              }
-
-              // Load new page's drawings
-              if (newPage.drawings && newPage.drawings.length > 0) {
-                useDrawingStore.setState({ elements: newPage.drawings });
-              }
-            } catch (e) {
-              console.warn('Could not load new page state:', e);
-            }
           }
         },
 

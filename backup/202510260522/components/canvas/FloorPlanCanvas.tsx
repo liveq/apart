@@ -1271,26 +1271,26 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
                   onClick={handleDirectDraw}
                   style={{
                     padding: isMobile ? '10px 12px' : '16px 28px',
-                    backgroundColor: 'white',
-                    color: '#b45309',
-                    border: '2px solid #fbbf24',
+                    backgroundColor: '#9333ea',
+                    color: 'white',
+                    border: 'none',
                     borderRadius: isMobile ? '6px' : '8px',
                     fontSize: isMobile ? '13px' : '16px',
                     fontWeight: isMobile ? '600' : 'bold',
                     cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(251,191,36,0.2)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                     transition: 'all 0.2s',
                     width: isMobile ? '160px' : 'auto',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#fef3c7';
+                    e.currentTarget.style.backgroundColor = '#7e22ce';
                     e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 12px rgba(251,191,36,0.3)';
+                    e.currentTarget.style.boxShadow = '0 6px 8px rgba(0,0,0,0.15)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'white';
+                    e.currentTarget.style.backgroundColor = '#9333ea';
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(251,191,36,0.2)';
+                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
                   }}
                 >
                   ✏️ {t('createFloorPlan')}
@@ -1299,26 +1299,26 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
                   onClick={handleCenterUploadClick}
                   style={{
                     padding: isMobile ? '10px 12px' : '16px 28px',
-                    backgroundColor: '#d97706',
+                    backgroundColor: '#22c55e',
                     color: 'white',
                     border: 'none',
                     borderRadius: isMobile ? '6px' : '8px',
                     fontSize: isMobile ? '13px' : '16px',
                     fontWeight: isMobile ? '600' : 'bold',
                     cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(217,119,6,0.3)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                     transition: 'all 0.2s',
                     width: isMobile ? '160px' : 'auto',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#b45309';
+                    e.currentTarget.style.backgroundColor = '#16a34a';
                     e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(217,119,6,0.4)';
+                    e.currentTarget.style.boxShadow = '0 6px 8px rgba(0,0,0,0.15)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#d97706';
+                    e.currentTarget.style.backgroundColor = '#22c55e';
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(217,119,6,0.3)';
+                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
                   }}
                 >
                   📤 {t('uploadFloorPlan')}
@@ -1327,26 +1327,26 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
                   onClick={handleLoadSample}
                   style={{
                     padding: isMobile ? '10px 12px' : '16px 28px',
-                    backgroundColor: 'white',
-                    color: '#6b7280',
-                    border: '2px solid #e5e7eb',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
                     borderRadius: isMobile ? '6px' : '8px',
                     fontSize: isMobile ? '13px' : '16px',
                     fontWeight: isMobile ? '600' : 'bold',
                     cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                     transition: 'all 0.2s',
                     width: isMobile ? '160px' : 'auto',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f9fafb';
+                    e.currentTarget.style.backgroundColor = '#2563eb';
                     e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.15)';
+                    e.currentTarget.style.boxShadow = '0 6px 8px rgba(0,0,0,0.15)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'white';
+                    e.currentTarget.style.backgroundColor = '#3b82f6';
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
                   }}
                 >
                   {t('viewSample')}

@@ -277,28 +277,40 @@ export default function DrawingToolbar() {
 
   if (toolbarCollapsed) {
     return (
-      <button
+      <div
         onMouseDown={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
-        onClick={() => setToolbarCollapsed(false)}
         style={{
           position: 'absolute',
           top: '16px',
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 300,
-          backgroundColor: '#3b82f6',
-          color: 'white',
-          border: 'none',
-          borderRadius: '6px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          padding: '6px 12px',
-          cursor: 'pointer',
-          fontSize: '12px',
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          padding: '8px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
         }}
       >
-        그리기도구 ▼
-      </button>
+        <span style={{ fontSize: '14px', color: '#666' }}>그리기 도구</span>
+        <button
+          onClick={() => setToolbarCollapsed(false)}
+          style={{
+            padding: '4px 12px',
+            backgroundColor: '#3b82f6',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+          }}
+        >
+          펼치기 ▼
+        </button>
+      </div>
     );
   }
 

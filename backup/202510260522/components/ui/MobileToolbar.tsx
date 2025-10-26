@@ -188,47 +188,7 @@ export default function MobileToolbar({
 
         // 기존 pages 초기화 후 새로운 pages 추가
         useAppStore.setState({ pages: projectData.pages, currentPageIndex: 0 });
-
-        // Load first page's furniture, drawings, and image
-        const firstPage = projectData.pages[0];
-        if (firstPage) {
-          // Clear current furniture and drawings
-          clearAll();
-          clearAllElements();
-
-          // Load first page's image (중요!)
-          if (firstPage.imageUrl) {
-            setUploadedImageUrl(firstPage.imageUrl);
-            setShowSampleFloorPlan(false);
-          } else {
-            setUploadedImageUrl(null);
-            setShowSampleFloorPlan(false);
-          }
-
-          // Load first page's furniture
-          if (firstPage.furniture && firstPage.furniture.length > 0) {
-            firstPage.furniture.forEach((item: any) => {
-              useFurnitureStore.getState().addFurniture({
-                templateId: item.templateId,
-                name: item.name,
-                x: item.x,
-                y: item.y,
-                width: item.width,
-                depth: item.depth || item.height,
-                height: item.height,
-                rotation: item.rotation,
-                color: item.color,
-                category: item.category,
-              });
-            });
-          }
-
-          // Load first page's drawings
-          if (firstPage.drawings && firstPage.drawings.length > 0) {
-            useDrawingStore.setState({ elements: firstPage.drawings });
-          }
-        }
-
+        
         toast.success(`프로젝트가 로드되었습니다 (${projectData.pages.length}개 페이지)`);
         setShowMenuSheet(false);
       } catch (error) {
@@ -332,14 +292,14 @@ export default function MobileToolbar({
               }
               setToolbarCollapsed(false);
             }}
-            className="px-2 py-1 bg-purple-500 text-white hover:bg-purple-600 rounded text-xs shadow-md"
+            className="px-3 py-1.5 bg-purple-500 text-white hover:bg-purple-600 rounded text-xs font-medium shadow-lg"
             style={{
               cursor: 'pointer',
               touchAction: 'manipulation',
             }}
             title="그리기 도구 펼치기"
           >
-            그리기도구 ▼
+            ✏️ 그리기 도구
           </button>
         </div>
       )}
@@ -493,10 +453,10 @@ export default function MobileToolbar({
               }
               setToolbarCollapsed(false);
             }}
-            className="px-2 py-1 bg-purple-500 text-white hover:bg-purple-600 rounded text-xs flex-shrink-0"
+            className="px-3 py-1.5 bg-purple-500 text-white hover:bg-purple-600 rounded text-xs font-medium flex-shrink-0"
             title="그리기 도구 펼치기"
           >
-            그리기도구 ▼
+            ✏️ 그리기 도구
           </button>
         )}
 
@@ -670,16 +630,7 @@ export default function MobileToolbar({
             });
 
             Promise.all(newPages).then((pages) => {
-              // 기존 페이지를 초기화하고 새 페이지로 교체
-              useAppStore.setState({
-                pages: pages,
-                currentPageIndex: 0
-              });
-
-              // 기존 가구와 도형도 초기화
-              clearAll();
-              clearAllElements();
-
+              useAppStore.getState().addPages(pages);
               toast.success(`${pages.length}개 페이지가 로드되었습니다`);
             });
 

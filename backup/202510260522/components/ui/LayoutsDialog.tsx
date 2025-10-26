@@ -88,16 +88,16 @@ export default function LayoutsDialog({ open, onClose, mode = 'save' }: LayoutsD
 
       onClose();
     } else {
-      // Load furniture layout with all associated data
-      const layout = savedLayouts.find((l) => l.id === id);
-      if (layout) {
+      // Load furniture layout
+      const loadedFurniture = loadLayout(id);
+      if (loadedFurniture) {
         // Replace current furniture with loaded layout
         const furnitureStore = useFurnitureStore.getState();
         furnitureStore.furniture.forEach((item) => {
           furnitureStore.deleteFurniture(item.id);
         });
 
-        layout.furniture.forEach((item) => {
+        loadedFurniture.forEach((item) => {
           furnitureStore.addFurniture({
             templateId: item.templateId,
             name: item.name,
@@ -111,45 +111,6 @@ export default function LayoutsDialog({ open, onClose, mode = 'save' }: LayoutsD
             category: item.category,
           });
         });
-
-        // Restore uploaded image or sample floor plan
-        if (layout.uploadedImageUrl) {
-          setUploadedImageUrl(layout.uploadedImageUrl);
-          setShowSampleFloorPlan(false);
-        } else if (layout.showSampleFloorPlan) {
-          setShowSampleFloorPlan(true);
-          setUploadedImageUrl(null);
-        } else {
-          setUploadedImageUrl(null);
-          setShowSampleFloorPlan(false);
-        }
-
-        // Restore calibration
-        const { setCalibratedScale } = useAppStore.getState();
-        if (layout.calibratedScale !== undefined) {
-          setCalibratedScale(layout.calibratedScale);
-        }
-
-        // Restore pages
-        if (layout.pages && layout.pages.length > 0) {
-          useAppStore.setState({
-            pages: layout.pages,
-            currentPageIndex: layout.currentPageIndex !== undefined ? layout.currentPageIndex : 0
-          });
-        } else {
-          useAppStore.setState({
-            pages: [],
-            currentPageIndex: -1
-          });
-        }
-
-        // Restore drawing elements
-        if (layout.elements && layout.elements.length > 0) {
-          const { useDrawingStore } = require('@/lib/stores/drawing-store');
-          useDrawingStore.setState({
-            elements: layout.elements
-          });
-        }
 
         onClose();
       }
@@ -257,8 +218,8 @@ export default function LayoutsDialog({ open, onClose, mode = 'save' }: LayoutsD
 
         {/* Saved Layouts List */}
         <div className="flex-1 overflow-y-auto">
-          {drawingMode ? (
-            // Show Drawing Works when in drawing mode
+          {(drawingMode || mode === 'load') ? (
+            // Show Drawing Works (always show in load mode, or when in drawing mode)
             savedDrawingWorks.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 {mode === 'load' ? '저장된 작업이 없습니다' : t('newLayout')}

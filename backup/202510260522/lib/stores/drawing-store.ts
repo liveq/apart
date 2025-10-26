@@ -311,8 +311,8 @@ export const useDrawingStore = create<DrawingState>()(
           set((state) => ({
             elements: [...state.elements, elementWithLayer]
           }));
-          // Auto-save disabled - now using file-based save only
-          // setTimeout(() => get().saveCurrentWork(), 100);
+          // Auto-save after adding element
+          setTimeout(() => get().saveCurrentWork(), 100);
         },
 
         updateElement: (id, updates) => {
@@ -330,8 +330,8 @@ export const useDrawingStore = create<DrawingState>()(
             elements: state.elements.filter((el) => el.id !== id),
             selectedElementId: state.selectedElementId === id ? null : state.selectedElementId
           }));
-          // Auto-save disabled - now using file-based save only
-          // setTimeout(() => get().saveCurrentWork(), 100);
+          // Auto-save after deleting element
+          setTimeout(() => get().saveCurrentWork(), 100);
         },
 
         clearAllElements: () => set({ elements: [], selectedElementId: null }),
@@ -346,8 +346,7 @@ export const useDrawingStore = create<DrawingState>()(
               return el;
             })
           }));
-          // Auto-save disabled - now using file-based save only
-          // setTimeout(() => get().saveCurrentWork(), 100);
+          setTimeout(() => get().saveCurrentWork(), 100);
         },
 
         duplicateElement: (id) => {
@@ -388,8 +387,7 @@ export const useDrawingStore = create<DrawingState>()(
             elements: [...state.elements, newElement],
             selectedElementId: newElement.id,
           }));
-          // Auto-save disabled - now using file-based save only
-          // setTimeout(() => get().saveCurrentWork(), 100);
+          setTimeout(() => get().saveCurrentWork(), 100);
         },
 
         setSelectedElementId: (id) => set({ selectedElementId: id }),

@@ -349,39 +349,16 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
       dontShowAgainKey: dontShowKey,
     });
   }
-  // 프로젝트 전체 저장 (통합 버전)
+  // 프로젝트 전체 저장 (모든 페이지)
   const handleSaveProject = () => {
-    const currentFurniture = useFurnitureStore.getState().furniture;
-    const currentElements = useDrawingStore.getState().elements;
-    const currentPageIndex = useAppStore.getState().currentPageIndex;
-
-    let pagesToSave = [...pages];
-
-    // 페이지가 없는 경우: 현재 작업을 단일 페이지로 저장
     if (pages.length === 0) {
-      const singlePage = {
-        id: `page-${Date.now()}`,
-        name: uploadedImageUrl ? '업로드 이미지' : showSampleFloorPlan ? '샘플 도면' : '직접 그리기',
-        imageUrl: uploadedImageUrl || '',
-        furniture: JSON.parse(JSON.stringify(currentFurniture)),
-        drawings: JSON.parse(JSON.stringify(currentElements)),
-        createdAt: Date.now(),
-      };
-      pagesToSave = [singlePage];
-    } else {
-      // 페이지가 있는 경우: 현재 페이지 업데이트
-      if (currentPageIndex >= 0 && currentPageIndex < pages.length) {
-        pagesToSave[currentPageIndex] = {
-          ...pagesToSave[currentPageIndex],
-          furniture: JSON.parse(JSON.stringify(currentFurniture)),
-          drawings: JSON.parse(JSON.stringify(currentElements)),
-        };
-      }
+      toast.error('저장할 페이지가 없습니다');
+      return;
     }
 
     const projectData = {
       version: '1.0',
-      pages: pagesToSave,
+      pages: pages,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -389,24 +366,17 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
     const dataStr = JSON.stringify(projectData, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-
+    
     const link = document.createElement('a');
     link.href = url;
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-    link.download = `apart-project-${timestamp}.json`;
+    link.download = `apart-project-${timestamp}.apart`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    // Update pages in store if they were created
-    if (pages.length === 0) {
-      useAppStore.setState({ pages: pagesToSave, currentPageIndex: 0 });
-    } else {
-      useAppStore.setState({ pages: pagesToSave });
-    }
-
-    toast.success(`프로젝트가 저장되었습니다 (${pagesToSave.length}개 페이지)`);
+    toast.success(`프로젝트가 저장되었습니다 (${pages.length}개 페이지)`);
   };
 
   // 프로젝트 전체 로드
@@ -414,8 +384,8 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.json') && !file.name.endsWith('.apart')) {
-      toast.error('.json 또는 .apart 파일만 로드할 수 있습니다');
+    if (!file.name.endsWith('.apart')) {
+      toast.error('.apart 파일만 로드할 수 있습니다');
       return;
     }
 
@@ -423,7 +393,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
     reader.onload = (event) => {
       try {
         const projectData = JSON.parse(event.target?.result as string);
-
+        
         if (!projectData.pages || !Array.isArray(projectData.pages)) {
           toast.error('올바른 프로젝트 파일이 아닙니다');
           return;
@@ -431,47 +401,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         // 기존 pages 초기화 후 새로운 pages 추가
         useAppStore.setState({ pages: projectData.pages, currentPageIndex: 0 });
-
-        // Load first page's furniture, drawings, and image
-        const firstPage = projectData.pages[0];
-        if (firstPage) {
-          // Clear current furniture and drawings
-          clearAll();
-          clearAllElements();
-
-          // Load first page's image (중요!)
-          if (firstPage.imageUrl) {
-            setUploadedImageUrl(firstPage.imageUrl);
-            setShowSampleFloorPlan(false);
-          } else {
-            setUploadedImageUrl(null);
-            setShowSampleFloorPlan(false);
-          }
-
-          // Load first page's furniture
-          if (firstPage.furniture && firstPage.furniture.length > 0) {
-            firstPage.furniture.forEach((item: any) => {
-              useFurnitureStore.getState().addFurniture({
-                templateId: item.templateId,
-                name: item.name,
-                x: item.x,
-                y: item.y,
-                width: item.width,
-                depth: item.depth || item.height,
-                height: item.height,
-                rotation: item.rotation,
-                color: item.color,
-                category: item.category,
-              });
-            });
-          }
-
-          // Load first page's drawings
-          if (firstPage.drawings && firstPage.drawings.length > 0) {
-            useDrawingStore.setState({ elements: firstPage.drawings });
-          }
-        }
-
+        
         toast.success(`프로젝트가 로드되었습니다 (${projectData.pages.length}개 페이지)`);
       } catch (error) {
         console.error('프로젝트 로드 실패:', error);
@@ -480,7 +410,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
     };
 
     reader.readAsText(file);
-
+    
     // Reset file input
     if (e.target) {
       e.target.value = '';
@@ -611,7 +541,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={handleDirectDraw}
-          className="px-3 py-2 bg-white text-amber-700 hover:bg-amber-50 hover:ring-2 hover:ring-amber-200 hover:shadow-md rounded text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1 border border-amber-200"
+          className="px-3 py-2 bg-purple-500 text-white hover:bg-purple-600 hover:ring-2 hover:ring-purple-300 hover:shadow-md rounded text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1"
           title={t('createFloorPlanTooltip')}
         >
           ✏️ {t('directDraw')}
@@ -619,7 +549,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={handleUploadClick}
-          className="px-3 py-2 bg-amber-600 text-white hover:bg-amber-700 hover:ring-2 hover:ring-amber-300 hover:shadow-md rounded text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1"
+          className="px-3 py-2 bg-green-500 text-white hover:bg-green-600 hover:ring-2 hover:ring-green-300 hover:shadow-md rounded text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1"
           title={t('uploadFloorPlanTooltip')}
         >
           📁 {t('uploadButton')}
@@ -627,7 +557,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={handleLoadSample}
-          className="px-3 py-2 bg-white text-gray-700 hover:bg-gray-50 hover:ring-2 hover:ring-gray-200 hover:shadow-md rounded text-sm font-medium transition-all whitespace-nowrap border border-gray-200"
+          className="px-3 py-2 bg-blue-500 text-white hover:bg-blue-600 hover:ring-2 hover:ring-blue-300 hover:shadow-md rounded text-sm font-medium transition-all whitespace-nowrap"
           title={t('sampleFloorPlanTooltip')}
         >
           {t('sample')}
@@ -635,7 +565,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={handleReset}
-          className="px-3 py-2 bg-white text-gray-600 hover:bg-gray-50 hover:ring-2 hover:ring-gray-200 hover:shadow-md rounded text-sm font-medium transition-all whitespace-nowrap border border-gray-200"
+          className="px-3 py-2 bg-gray-500 text-white hover:bg-gray-600 hover:ring-2 hover:ring-gray-300 hover:shadow-md rounded text-sm font-medium transition-all whitespace-nowrap"
           title={t('resetAllTooltip')}
         >
           {t('reset')}
@@ -648,10 +578,10 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
           className={
             'px-3 py-2 rounded text-sm font-medium transition-all hover:shadow-md whitespace-nowrap flex items-center gap-1 ' +
             (calibrationMode
-              ? 'bg-amber-600 text-white hover:bg-amber-700 hover:ring-2 hover:ring-amber-300 shadow-lg'
+              ? 'bg-orange-500 text-white hover:bg-orange-600 hover:ring-2 hover:ring-orange-300 shadow-lg'
               : calibratedScale
-              ? 'bg-amber-500 text-white hover:bg-amber-600 hover:ring-2 hover:ring-amber-200'
-              : 'bg-white text-amber-600 hover:bg-amber-50 hover:ring-2 hover:ring-amber-200 border border-amber-200')
+              ? 'bg-blue-500 text-white hover:bg-blue-600 hover:ring-2 hover:ring-blue-300'
+              : 'bg-yellow-500 text-white hover:bg-yellow-600 hover:ring-2 hover:ring-yellow-300')
           }
           title={calibratedScale ? `${t('calibrated')} (${calibratedScale.toFixed(5)})` : t('calibrationTooltip')}
         >
@@ -671,7 +601,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
                 },
               });
             }}
-            className="px-2 py-2 bg-white text-gray-600 hover:bg-gray-50 hover:ring-2 hover:ring-gray-200 hover:shadow-md rounded text-xs transition-all whitespace-nowrap border border-gray-200"
+            className="px-2 py-2 bg-red-500 text-white hover:bg-red-600 hover:ring-2 hover:ring-red-300 hover:shadow-md rounded text-xs transition-all whitespace-nowrap"
             title={t('resetCalibrationTooltip')}
           >
             {t('resetCalibration')}
@@ -765,35 +695,60 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
 
         <button
           onClick={handleClearAll}
-          className="px-3 py-2 bg-white text-gray-600 hover:bg-gray-50 hover:ring-2 hover:ring-gray-200 hover:shadow-md rounded text-sm transition-all whitespace-nowrap border border-gray-200"
+          className="px-3 py-2 bg-gray-500 text-white hover:bg-gray-600 hover:ring-2 hover:ring-gray-300 hover:shadow-md rounded text-sm transition-all whitespace-nowrap"
           title={t('clearAllFurnitureTooltip')}
         >
           {t('clearAllFurniture')}
         </button>
 
-        {/* 통합 저장/로드 버튼 - 항상 파일 기반 */}
         <button
-          onClick={handleSaveProject}
-          className="px-3 py-2 bg-amber-600 text-white hover:bg-amber-700 hover:ring-2 hover:ring-amber-300 hover:shadow-md rounded text-sm transition-all whitespace-nowrap flex items-center gap-1"
-          title="프로젝트를 파일로 저장"
+          onClick={() => {
+            // Always show save dialog regardless of mode
+            setShowSaveDialog(true);
+          }}
+          className="px-3 py-2 bg-primary text-primary-foreground hover:opacity-90 hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all whitespace-nowrap flex items-center gap-1"
+          title={t('saveTooltip')}
         >
           💾 {t('saveButton')}
         </button>
 
-        <input
-          type="file"
-          accept=".apart,.json"
-          onChange={handleLoadProject}
-          style={{ display: 'none' }}
-          id="project-file-input"
-        />
         <button
-          onClick={() => document.getElementById('project-file-input')?.click()}
-          className="px-3 py-2 bg-white text-amber-700 hover:bg-amber-50 hover:ring-2 hover:ring-amber-200 hover:shadow-md rounded text-sm transition-all whitespace-nowrap flex items-center gap-1 border border-amber-200"
-          title="저장된 파일 로드"
+          onClick={handleLoadClick}
+          className="px-3 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all whitespace-nowrap flex items-center gap-1"
+          title={t('loadTooltip')}
         >
           📂 {t('loadButton')}
         </button>
+
+        {/* 프로젝트 저장/로드 버튼 (페이지 여러 개 저장) */}
+        {pages.length > 0 && (
+          <>
+            <div className="w-px h-6 bg-border mx-2" />
+            
+            <button
+              onClick={handleSaveProject}
+              className="px-3 py-2 bg-green-600 text-white hover:bg-green-700 hover:ring-2 hover:ring-green-300 hover:shadow-md rounded text-sm transition-all whitespace-nowrap flex items-center gap-1"
+              title="모든 페이지를 프로젝트 파일로 저장"
+            >
+              💾📄 프로젝트 저장
+            </button>
+
+            <input
+              type="file"
+              accept=".apart"
+              onChange={handleLoadProject}
+              style={{ display: 'none' }}
+              id="project-file-input"
+            />
+            <button
+              onClick={() => document.getElementById('project-file-input')?.click()}
+              className="px-3 py-2 bg-secondary hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:shadow-md rounded text-sm transition-all whitespace-nowrap flex items-center gap-1"
+              title="프로젝트 파일 로드 (.apart)"
+            >
+              📂📄 프로젝트 로드
+            </button>
+          </>
+        )}
 
         <div className="w-px h-6 bg-border mx-2" />
 
@@ -866,16 +821,7 @@ export default function Toolbar({ canvasRef, measurementMode, onToggleMeasuremen
             });
 
             Promise.all(newPages).then((pages) => {
-              // 기존 페이지를 초기화하고 새 페이지로 교체
-              useAppStore.setState({
-                pages: pages,
-                currentPageIndex: 0
-              });
-
-              // 기존 가구와 도형도 초기화
-              clearAll();
-              clearAllElements();
-
+              useAppStore.getState().addPages(pages);
               toast.success(`${pages.length}개 페이지가 로드되었습니다`);
             });
 

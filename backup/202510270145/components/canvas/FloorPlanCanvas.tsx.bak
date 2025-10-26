@@ -33,7 +33,7 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
   const isMobile = useIsMobile();
   const { furniture, addMeasurement, recalibrateMeasurements, clearAll } = useFurnitureStore();
   const { clearSelection } = useSelectionStore();
-  const { setViewport, calibratedScale, setCalibratedScale, uploadedImageUrl, showSampleFloorPlan, setShowSampleFloorPlan, setUploadedImageUrl, setShowCanvasSizeDialog, pages, currentPageIndex, setCurrentPageIndex, getCurrentPage } = useAppStore();
+  const { setViewport, calibratedScale, setCalibratedScale, uploadedImageUrl, showSampleFloorPlan, setShowSampleFloorPlan, setUploadedImageUrl, setShowCanvasSizeDialog } = useAppStore();
   const { drawingMode, setDrawingMode, canvasWidth: drawingCanvasWidth, canvasHeight: drawingCanvasHeight, currentTool, eraserMode: drawingEraserMode, clearAllElements, toolbarCollapsed } = useDrawingStore();
   const [displayScale, setDisplayScale] = useState(0.05); // 캔버스 표시용 scale (항상 자동 계산)
   const [measurementStart, setMeasurementStart] = useState<{ x: number; y: number } | null>(null);
@@ -53,7 +53,6 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
 
   // Touch zoom and pan state
   const [zoom, setZoom] = useState(1);
-  const [showPagePanel, setShowPagePanel] = useState(false);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
@@ -91,62 +90,6 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
       setUploadedImageDimensions(null);
     }
   }, [uploadedImageUrl]);
-
-  // 페이지 전환 동기화: currentPageIndex가 변경되면 해당 페이지의 데이터를 로드
-  useEffect(() => {
-    if (pages.length > 0 && currentPageIndex >= 0 && currentPageIndex < pages.length) {
-      const currentPage = pages[currentPageIndex];
-      
-      // 현재 페이지의 furniture를 furniture-store에 로드
-      useFurnitureStore.setState({ furniture: currentPage.furniture || [] });
-      
-      // 현재 페이지의 drawings를 drawing-store에 로드
-      useDrawingStore.setState({ elements: currentPage.drawings || [] });
-      
-      // 현재 페이지의 이미지를 uploadedImageUrl로 설정
-      if (currentPage.imageUrl) {
-        setUploadedImageUrl(currentPage.imageUrl);
-        setShowSampleFloorPlan(false);
-      }
-    }
-  }, [currentPageIndex]);
-
-  // 현재 작업 내용을 페이지에 자동 저장
-  useEffect(() => {
-    if (pages.length > 0 && currentPageIndex >= 0 && currentPageIndex < pages.length) {
-      // 현재 페이지의 furniture와 drawings를 업데이트
-      useAppStore.setState((state) => ({
-        pages: state.pages.map((page, index) =>
-          index === currentPageIndex
-            ? { ...page, furniture: furniture, drawings: useDrawingStore.getState().elements }
-            : page
-        ),
-      }));
-    }
-  }, [furniture, currentPageIndex]);
-
-  // drawings 변경 감지 및 자동 저장 (subscribe 방식)
-  useEffect(() => {
-    const unsubscribe = useDrawingStore.subscribe((state) => {
-      // 페이지가 있고 현재 페이지가 유효할 때만
-      const appState = useAppStore.getState();
-      if (appState.pages.length > 0 && appState.currentPageIndex >= 0 && appState.currentPageIndex < appState.pages.length) {
-        // drawings 업데이트
-        useAppStore.setState((appState) => ({
-          pages: appState.pages.map((page, index) =>
-            index === appState.currentPageIndex
-              ? { ...page, drawings: state.elements }
-              : page
-          ),
-        }));
-      }
-    });
-
-    return () => unsubscribe();
-  }, [currentPageIndex]);
-
-
-
 
   useEffect(() => {
     const updateSize = () => {
@@ -478,15 +421,6 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
 
   // Mouse wheel zoom and pan (will be added via useEffect)
   const handleWheel = (e: WheelEvent) => {
-    // Check if wheel event is happening inside the page panel
-    // If so, don't prevent it - allow panel scrolling
-    const target = e.target as HTMLElement;
-    const pagePanel = target.closest('.page-panel-scroll');
-    if (pagePanel) {
-      // Allow scrolling inside the panel
-      return;
-    }
-
     e.preventDefault();
 
     // 가로 휠 (Shift + 휠 또는 가로 휠) → 좌우 팬
@@ -1062,128 +996,7 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
         <div className="w-10 h-10 bg-white rounded-lg shadow-md flex items-center justify-center text-xs font-bold text-gray-900 border border-border">
           {Math.round(zoom * 100)}%
         </div>
-
-        {/* 페이지 네비게이션 (페이지가 있을 때만) */}
-        {pages.length > 0 && (
-          <>
-            <div className="w-10 h-1 border-t border-gray-300 my-1" />
-            <button
-              onClick={() => {
-                if (currentPageIndex > 0) {
-                  setCurrentPageIndex(currentPageIndex - 1);
-                }
-              }}
-              disabled={currentPageIndex === 0}
-              className="w-10 h-10 bg-white hover:bg-gray-100 rounded-lg shadow-md flex items-center justify-center text-gray-900 transition-colors border border-border disabled:opacity-30 disabled:cursor-not-allowed"
-              title="이전 페이지"
-            >
-              ◀
-            </button>
-            <button
-              onClick={() => setShowPagePanel(!showPagePanel)}
-              className="w-10 h-10 bg-white hover:bg-gray-100 rounded-lg shadow-md flex items-center justify-center text-gray-900 transition-colors border border-border group relative"
-              title="페이지 미리보기"
-            >
-              <span className="group-hover:hidden flex flex-col items-center justify-center text-[10px] font-medium leading-tight">
-                <span>{currentPageIndex + 1}</span>
-                <span className="text-gray-400">/</span>
-                <span>{pages.length}</span>
-              </span>
-              <span className="hidden group-hover:flex text-xl">⊞</span>
-            </button>
-            <button
-              onClick={() => {
-                if (currentPageIndex < pages.length - 1) {
-                  setCurrentPageIndex(currentPageIndex + 1);
-                }
-              }}
-              disabled={currentPageIndex === pages.length - 1}
-              className="w-10 h-10 bg-white hover:bg-gray-100 rounded-lg shadow-md flex items-center justify-center text-gray-900 transition-colors border border-border disabled:opacity-30 disabled:cursor-not-allowed"
-              title="다음 페이지"
-            >
-              ▶
-            </button>
-          </>
-        )}
       </div>
-
-      {/* 썸네일 미리보기 패널 */}
-      {pages.length > 0 && showPagePanel && (
-        <>
-          {/* 배경 오버레이 */}
-          <div
-            className="fixed inset-0 bg-black/20"
-            style={{ zIndex: 9998, pointerEvents: 'auto' }}
-            onClick={() => setShowPagePanel(false)}
-          />
-
-          {/* 패널 - 우측 버튼 왼쪽에 표시 */}
-          <div
-            className="page-panel-scroll fixed bg-card border border-border rounded-lg shadow-2xl p-4 max-w-md w-80 max-h-[calc(100vh-6rem)] overflow-y-auto"
-            style={{
-              top: toolbarCollapsed ? '16px' : '110px',
-              right: '72px', // 버튼 너비(40px) + 버튼과 패널 간격(32px)
-              transition: 'top 0.3s ease',
-              zIndex: 9999,
-            }}
-          >
-            {/* 헤더 */}
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
-              <h3 className="font-bold text-lg">페이지</h3>
-              <span className="text-sm font-medium">
-                {currentPageIndex + 1} / {pages.length}
-              </span>
-            </div>
-
-            {/* 페이지 목록 (썸네일 그리드) */}
-            <div className="grid grid-cols-2 gap-3">
-              {pages.map((page, index) => (
-                <button
-                  key={page.id}
-                  onClick={() => {
-                    setCurrentPageIndex(index);
-                    setShowPagePanel(false);
-                  }}
-                  className={`
-                    relative rounded-lg overflow-hidden border-2 transition-all
-                    ${index === currentPageIndex
-                      ? 'border-primary ring-2 ring-primary/20'
-                      : 'border-border hover:border-accent'
-                    }
-                  `}
-                >
-                  {/* 썸네일 이미지 */}
-                  <div className="aspect-[4/3] bg-secondary">
-                    <img
-                      src={page.imageUrl}
-                      alt={page.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-
-                  {/* 페이지 정보 */}
-                  <div className="p-2 bg-card/95 text-left">
-                    <p className="text-xs font-medium truncate">
-                      {page.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {index + 1} / {pages.length}
-                    </p>
-                  </div>
-
-                  {/* 현재 페이지 표시 */}
-                  {index === currentPageIndex && (
-                    <div className="absolute top-2 right-2 bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-bold">
-                      현재
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
       <div
         id="floor-plan-canvas-inner"
         data-zoom={zoom}
@@ -1271,26 +1084,26 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
                   onClick={handleDirectDraw}
                   style={{
                     padding: isMobile ? '10px 12px' : '16px 28px',
-                    backgroundColor: 'white',
-                    color: '#b45309',
-                    border: '2px solid #fbbf24',
+                    backgroundColor: '#9333ea',
+                    color: 'white',
+                    border: 'none',
                     borderRadius: isMobile ? '6px' : '8px',
                     fontSize: isMobile ? '13px' : '16px',
                     fontWeight: isMobile ? '600' : 'bold',
                     cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(251,191,36,0.2)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                     transition: 'all 0.2s',
                     width: isMobile ? '160px' : 'auto',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#fef3c7';
+                    e.currentTarget.style.backgroundColor = '#7e22ce';
                     e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 12px rgba(251,191,36,0.3)';
+                    e.currentTarget.style.boxShadow = '0 6px 8px rgba(0,0,0,0.15)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'white';
+                    e.currentTarget.style.backgroundColor = '#9333ea';
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(251,191,36,0.2)';
+                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
                   }}
                 >
                   ✏️ {t('createFloorPlan')}
@@ -1299,26 +1112,26 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
                   onClick={handleCenterUploadClick}
                   style={{
                     padding: isMobile ? '10px 12px' : '16px 28px',
-                    backgroundColor: '#d97706',
+                    backgroundColor: '#22c55e',
                     color: 'white',
                     border: 'none',
                     borderRadius: isMobile ? '6px' : '8px',
                     fontSize: isMobile ? '13px' : '16px',
                     fontWeight: isMobile ? '600' : 'bold',
                     cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(217,119,6,0.3)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                     transition: 'all 0.2s',
                     width: isMobile ? '160px' : 'auto',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#b45309';
+                    e.currentTarget.style.backgroundColor = '#16a34a';
                     e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(217,119,6,0.4)';
+                    e.currentTarget.style.boxShadow = '0 6px 8px rgba(0,0,0,0.15)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#d97706';
+                    e.currentTarget.style.backgroundColor = '#22c55e';
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(217,119,6,0.3)';
+                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
                   }}
                 >
                   📤 {t('uploadFloorPlan')}
@@ -1327,26 +1140,26 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
                   onClick={handleLoadSample}
                   style={{
                     padding: isMobile ? '10px 12px' : '16px 28px',
-                    backgroundColor: 'white',
-                    color: '#6b7280',
-                    border: '2px solid #e5e7eb',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
                     borderRadius: isMobile ? '6px' : '8px',
                     fontSize: isMobile ? '13px' : '16px',
                     fontWeight: isMobile ? '600' : 'bold',
                     cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                     transition: 'all 0.2s',
                     width: isMobile ? '160px' : 'auto',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f9fafb';
+                    e.currentTarget.style.backgroundColor = '#2563eb';
                     e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.15)';
+                    e.currentTarget.style.boxShadow = '0 6px 8px rgba(0,0,0,0.15)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'white';
+                    e.currentTarget.style.backgroundColor = '#3b82f6';
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
                   }}
                 >
                   {t('viewSample')}
@@ -1698,30 +1511,8 @@ const FloorPlanCanvas = forwardRef<HTMLDivElement, FloorPlanCanvasProps>(({ meas
       {pdfFile && (
         <PDFConversionModal
           file={pdfFile}
-          onConvert={(convertedPages) => {
-            // 변환된 여러 페이지를 pages에 추가
-            const newPages = convertedPages.map((page, index) => {
-              const reader = new FileReader();
-              return new Promise<any>((resolve) => {
-                reader.onloadend = () => {
-                  resolve({
-                    id: `page-${Date.now()}-${index}`,
-                    name: `페이지 ${page.pageNumber}`,
-                    imageUrl: reader.result as string,
-                    furniture: [],
-                    drawings: [],
-                    createdAt: Date.now(),
-                  });
-                };
-                reader.readAsDataURL(page.blob);
-              });
-            });
-
-            Promise.all(newPages).then((pages) => {
-              useAppStore.getState().addPages(pages);
-              toast.success(`${pages.length}개 페이지가 로드되었습니다`);
-            });
-
+          onConvert={(imageFile) => {
+            processCenterImageFile(imageFile);
             setPdfFile(null);
           }}
           onCancel={() => setPdfFile(null)}
