@@ -5,6 +5,7 @@ import { useDrawingStore, DrawingTool, LineStyle, EraserMode } from '@/lib/store
 import { useTranslation } from '@/lib/hooks/useTranslation';
 import { useIsMobile } from '@/lib/hooks/useMediaQuery';
 import HelpDialog from './HelpDialog';
+import PrivacyModal from './PrivacyModal';
 
 export default function DrawingToolbar() {
   const { t } = useTranslation();
@@ -47,6 +48,7 @@ export default function DrawingToolbar() {
   const [showEraserModePicker, setShowEraserModePicker] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showIconGuide, setShowIconGuide] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
   const [mobileColumns, setMobileColumns] = useState(8);
   const [menuWidth, setMenuWidth] = useState<string>('fit-content');
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
@@ -1291,9 +1293,24 @@ export default function DrawingToolbar() {
           </button>
 
           <div style={{ fontSize: '13px', color: '#666', marginTop: '12px', textAlign: 'center' }}>
-            <p style={{ fontWeight: 'bold', marginBottom: '4px' }}>기능및후원문의</p>
-            <a href="mailto:baal.contract@gmail.com" style={{ color: '#3b82f6', textDecoration: 'underline' }}>
-              baal.contract@gmail.com
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span style={{ fontWeight: 'bold' }}>기능및후원문의</span>
+              <button
+                onClick={() => setShowPrivacy(true)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  padding: '2px 6px',
+                }}
+                title="개인정보처리방침"
+              >
+                📄
+              </button>
+            </div>
+            <a href="mailto:summon@baal.co.kr" style={{ color: '#3b82f6', textDecoration: 'underline', display: 'block' }}>
+              summon@baal.co.kr
             </a>
           </div>
         </div>
@@ -1323,6 +1340,9 @@ export default function DrawingToolbar() {
 
     {/* Help Dialog */}
     <HelpDialog open={showHelp} onClose={() => setShowHelp(false)} />
+
+    {/* Privacy Modal */}
+    <PrivacyModal open={showPrivacy} onClose={() => setShowPrivacy(false)} />
     </>
   );
 }
